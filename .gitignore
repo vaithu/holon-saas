@@ -1,0 +1,17 @@
+# Project exclude paths
+/starter-saas/target/
+/tenant-admin/target/
+/tenant-audit/target/
+/tenant-billing/target/
+/tenant-core/target/
+/tenant-data/target/
+/tenant-invitations/target/
+/tenant-limits/target/
+/tenant-onboarding/target/
+/tenant-permissions/target/
+/tenant-quotas/target/
+/tenant-security/target/
+/tenant-settings/target/
+/tenant-signup/target/
+/tenant-users/target/
+/tenant-whatsapp/target/

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.holon-platform.multi-tenancy</groupId>
+        <artifactId>holon-multi-tenancy-root</artifactId>
+        <version>1.0.0</version>
+    </parent>
+    <artifactId>holon-multi-tenant-onboarding</artifactId>
+    <packaging>jar</packaging>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Holon SaaS  Multi-tenant onboarding: automatic schema provisioning, Flyway migration, lifecycle events</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.holon-platform.multi-tenancy</groupId>
+            <artifactId>holon-multi-tenant-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.holon-platform.multi-tenancy</groupId>
+            <artifactId>holon-multi-tenant-data</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.holon-platform.jpa</groupId>
+            <artifactId>holon-starter-jpa-hibernate</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+        </dependency>
+        <!-- Required at runtime by the logback-spring.xml bundled inside holon-datastore-jpa-spring-boot -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.holon-platform.jpa</groupId>
+            <artifactId>holon-datastore-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions><exclusion><groupId>org.junit.vintage</groupId><artifactId>junit-vintage-engine</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            Test-only: TenantDetailsLoaderAutoConfigurationOrderingTest combines
+            TenantOnboardingAutoConfiguration with tenant-core's TenantCoreAutoConfiguration
+            (whose TenantContextFilter/FilterRegistrationBean need the Servlet API) to prove the
+            cross-module @AutoConfigureAfter ordering hint between the two actually works.
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            Test-only: lets DefaultTenantOnboardingServiceTest (or a companion test) run the
+            actual bundled V1__tenant_baseline.sql via Flyway against a real H2 database,
+            instead of only ever mocking TenantSchemaInitializer — the gap that let a
+            reserved-word column name ("key") ship unnoticed in that script.
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Test-only: Hibernate's bean-validation integration needs a jakarta.el-namespaced
+             EL implementation on the classpath at EntityManagerFactory bootstrap, even when
+             no entity actually uses Bean Validation annotations. -->
+        <dependency>
+            <groupId>org.glassfish</groupId>
+            <artifactId>jakarta.el</artifactId>
+            <version>4.0.2</version>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            Test-only: real Testcontainers-backed integration test proving the framework's
+            V1__/V1.1__ migration scripts and DatabaseDialect schema-switching SQL actually work
+            against a real Postgres server, not just H2 (the only dialect ever empirically
+            exercised end-to-end before this) — the other dialects were previously verified only
+            at the string-assertion level (DatabaseDialectTest), never by actually running the
+            generated SQL against the real database engine it targets. (MySQL was evaluated the
+            same way and subsequently removed from DatabaseDialect entirely — see that enum's
+            Javadoc.)
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Flyway 10+ split proprietary/first-party DB support out of flyway-core into
+             dedicated per-database modules — required for Flyway to actually run migrations
+             against Postgres (flyway-core alone, which already supports H2, is not sufficient). -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive><manifestEntries><Automatic-Module-Name>com.holonplatform.multitenant.onboarding</Automatic-Module-Name></manifestEntries></archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+

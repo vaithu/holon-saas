@@ -1,0 +1,176 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.holon-platform.multi-tenancy</groupId>
+        <artifactId>holon-multi-tenancy-root</artifactId>
+        <version>1.0.0</version>
+    </parent>
+    <artifactId>holon-multi-tenancy-bom</artifactId>
+    <packaging>pom</packaging>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>
+        Holon SaaS Framework â‚¬â€œ Bill of Materials.
+        Import this single BOM to get consistent, co-tested versions for all
+        holon-multi-tenancy artifacts AND their upstream Spring Boot dependencies.
+
+        Usage:
+            &lt;dependencyManagement&gt;
+              &lt;dependencies&gt;
+                &lt;dependency&gt;
+                  &lt;groupId&gt;com.holon-platform.multi-tenancy&lt;/groupId&gt;
+                  &lt;artifactId&gt;holon-multi-tenancy-bom&lt;/artifactId&gt;
+                  &lt;version&gt;1.0.0&lt;/version&gt;
+                  &lt;type&gt;pom&lt;/type&gt;
+                  &lt;scope&gt;import&lt;/scope&gt;
+                &lt;/dependency&gt;
+              &lt;/dependencies&gt;
+            &lt;/dependencyManagement&gt;
+    </description>
+
+    <!--
+        Versions exported by this BOM.
+        These properties are visible to any project that imports this BOM and
+        allow consumers to reference framework versions without hard-coding them:
+            <version>${holon-multi-tenancy.version}</version>
+    -->
+    <properties>
+        <holon-multi-tenancy.version>1.0.0</holon-multi-tenancy.version>
+        <holon-core.version>12.0.0</holon-core.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+            <!--  Upstream BOMs  re-exported so consumers need only one import  -->
+
+            <!--
+                Spring Boot BOM  manages spring-boot-*, spring-*, slf4j, logback, etc.
+                Version kept in sync with the root POM property ${spring-boot.version}.
+            -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                Holon core BOM  manages holon-core, holon-auth, holon-auth-jwt, holon-http,
+                holon-spring, holon-spring-security, holon-spring-boot, holon-test,
+                holon-starter, holon-starter-security, holon-starter-test.
+            -->
+            <dependency>
+                <groupId>com.holon-platform.core</groupId>
+                <artifactId>holon-bom</artifactId>
+                <version>${holon-core.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                Holon JPA datastore BOM  manages holon-datastore-jpa, holon-datastore-jpa-spring,
+                holon-datastore-jpa-spring-boot, holon-starter-jpa-hibernate and
+                holon-starter-jpa-eclipselink.
+            -->
+            <dependency>
+                <groupId>com.holon-platform.jpa</groupId>
+                <artifactId>holon-datastore-jpa-bom</artifactId>
+                <version>${holon-core.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--  Holon SaaS modules  -->
+
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-core</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-data</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-security</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-onboarding</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-audit</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-settings</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-limits</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-users</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-billing</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-admin</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-whatsapp</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-permissions</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-invitations</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-signup</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-quotas</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+
+            <!--  All-in-one starter  -->
+
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-starter-multi-tenancy</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+</project>
+

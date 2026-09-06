@@ -1,0 +1,352 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--  Coordinates  -->
+    <groupId>com.holon-platform.multi-tenancy</groupId>
+    <artifactId>holon-multi-tenancy-root</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>
+        Holon SaaS Framework  UI-agnostic multi-tenant platform for Spring Boot applications.
+        Provides tenant isolation, security, billing, onboarding, audit, settings,
+        rate limiting, and user management as independent modules, so any UI
+        (Vaadin, React, REST clients, mobile, ...) can be built on top.
+    </description>
+    <url>https://holon-platform.com</url>
+
+    <!--  Properties  -->
+    <properties>
+        <java.version>25</java.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Dependency versions -->
+        <spring-boot.version>4.1.0</spring-boot.version>
+        <servlet.version>6.1.0</servlet.version>
+        <holon-core.version>12.0.0</holon-core.version>
+        <slf4j.version>2.0.18</slf4j.version>
+
+        <!--
+            Version of this project's own SaaS modules, used in dependencyManagement below.
+            IMPORTANT: do NOT use ${project.version} here. When this pom is inherited via
+            <parent> by an EXTERNAL consumer project, ${project.version} in an inherited
+            dependencyManagement entry resolves against the consumer's own version, not
+            this root pom's version, silently producing wrong/unresolvable dependency
+            versions for every holon-multi-tenancy module. A dedicated property is stable
+            regardless of who inherits or imports this pom.
+        -->
+        <holon-multi-tenancy.version>1.0.0</holon-multi-tenancy.version>
+
+        <!-- CVE overrides -->
+        <h2.version>2.4.240</h2.version>
+        <assertj.version>3.27.7</assertj.version>
+        <spring-security.version>7.1.0</spring-security.version>
+        <logback.version>1.5.34</logback.version>
+        <snakeyaml.version>2.6</snakeyaml.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+        <mockito.version>5.23.0</mockito.version>
+        <flyway.version>11.4.0</flyway.version>
+        <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
+
+        <!--
+            Skip spring-boot:start/stop during mvn install by default.
+            Override with -Dskip.boot.its=false when you need live IT tests.
+        -->
+        <skip.boot.its>true</skip.boot.its>
+    </properties>
+
+    <!--  Modules  -->
+    <modules>
+        <module>tenant-core</module>
+        <module>tenant-data</module>
+        <module>tenant-security</module>
+        <module>tenant-onboarding</module>
+        <module>tenant-audit</module>
+        <module>tenant-settings</module>
+        <module>tenant-limits</module>
+        <module>tenant-users</module>
+        <module>tenant-billing</module>
+        <module>tenant-admin</module>
+        <module>tenant-whatsapp</module>
+        <module>tenant-permissions</module>
+        <module>tenant-invitations</module>
+        <module>tenant-quotas</module>
+        <module>tenant-signup</module>
+        <module>starter-saas</module>
+        <module>bom</module>
+    </modules>
+
+    <!--  Dependency Management  -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Spring Boot BOM  manages all spring-boot-*, spring-*, slf4j, logback, etc. -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                holon-core BOM  manages holon-core, holon-auth, holon-auth-jwt, holon-http,
+                holon-spring, holon-spring-security, holon-spring-boot, holon-test,
+                holon-starter, holon-starter-security, holon-starter-test.
+                Import this so every holon-core module resolves to the same
+                ${holon-core.version} without having to pin each artifact individually below.
+            -->
+            <dependency>
+                <groupId>com.holon-platform.core</groupId>
+                <artifactId>holon-bom</artifactId>
+                <version>${holon-core.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Servlet API -->
+            <dependency>
+                <groupId>jakarta.servlet</groupId>
+                <artifactId>jakarta.servlet-api</artifactId>
+                <version>${servlet.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <!--
+                holon-datastore-jpa BOM  manages holon-datastore-jpa, holon-datastore-jpa-spring,
+                holon-datastore-jpa-spring-boot, holon-starter-jpa-hibernate and
+                holon-starter-jpa-eclipselink at a single, consistent ${holon-core.version}.
+                Import this instead of pinning each JPA/Hibernate artifact version individually.
+            -->
+            <dependency>
+                <groupId>com.holon-platform.jpa</groupId>
+                <artifactId>holon-datastore-jpa-bom</artifactId>
+                <version>${holon-core.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- CVE overrides -->
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-bom</artifactId>
+                <version>${spring-security.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-aop</artifactId>
+                <version>${spring-boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <!--
+                spring-boot-dependencies' own <properties> pins this to a DIFFERENT, newer
+                Flyway release than the flyway.version property above overrides flyway-core to
+                — ${flyway.version} placeholders inside an already-published, externally-authored
+                BOM resolve using THAT BOM's own property values, not this reactor's. Without
+                this explicit override, flyway-core (11.4.0, forced above) and
+                flyway-database-postgresql (12.4.0, from the BOM) end up on the classpath
+                together — binary-incompatible internal APIs across a Flyway major/minor
+                boundary, failing at runtime with: NoSuchMethodError:
+                PluginRegister.getExact(Class) — confirmed empirically by
+                TenantMigrationScriptsPostgresTest (tenant-onboarding).
+            -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-database-postgresql</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+
+            <!--
+                Required at runtime by the logback-spring.xml bundled inside
+                holon-datastore-jpa-spring-boot (holon-starter-jpa-hibernate transitive
+                dependency): it unconditionally declares CONSOLE_JSON/FILE_JSON appenders
+                using net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder, which
+                fails Logback configuration (and therefore Spring Boot context startup)
+                if this library is not on the classpath.
+            -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-logback-encoder.version}</version>
+            </dependency>
+
+            <!-- Caffeine Cache - Virtual Thread optimized caching -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>3.1.8</version>
+            </dependency>
+
+            <!-- Holon SaaS modules own version management -->
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-core</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-data</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-security</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-onboarding</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-audit</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-settings</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-limits</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-users</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-billing</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-admin</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-whatsapp</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-permissions</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-invitations</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-quotas</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-signup</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-starter-multi-tenancy</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!--  Common test dependencies  -->
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!--  Build  -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.15.0</version>
+                    <configuration>
+                        <release>${java.version}</release>
+                        <encoding>${project.build.sourceEncoding}</encoding>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.6</version>
+                    <configuration>
+                        <argLine>-XX:+EnableDynamicAgentLoading</argLine>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.5.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>
+
+

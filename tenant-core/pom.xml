@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.holon-platform.multi-tenancy</groupId>
+        <artifactId>holon-multi-tenancy-root</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>holon-multi-tenant-core</artifactId>
+    <packaging>jar</packaging>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Holon SaaS  Multi-tenant core: TenantContext, TenantResolver, TenantFilter, async propagation</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <!-- Annotation-only JPA API used to map TenantDetails as a persistable entity;
+             does not pull in a JPA provider  modules that persist it (tenant-onboarding,
+             tenant-admin, ...) supply their own Datastore/Hibernate runtime. -->
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+        <!-- Used by StringMapJsonConverter/StringSetJsonConverter (see that package) to
+             serialize element-collection-style Map/Set fields as a single JSON text column
+             instead of a separate @ElementCollection join table, avoiding Holon Datastore's
+             inner-join-drops-empty-parent-row bug. Not optional: any module persisting
+             TenantDetails needs these converters on the classpath at compile time. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <!-- Optional: TenantDetailsRepository (a plain Spring Data JpaRepository, used instead
+             of Holon's BeanDatastoreHelper for this specific entity — see that interface's
+             Javadoc for the rationale). Modules that actually construct/use it (tenant-onboarding,
+             tenant-admin) already declare this as a main-scope dependency themselves; marking it
+             optional here keeps modules that only need TenantContext/TenantDetails as a plain
+             value object (e.g. tenant-security) from pulling in Spring Data JPA transitively. -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Optional bridge target: com.holonplatform.core.tenancy.TenantResolver, so
+             @EnableTenantScope / @ScopeTenant (holon-core) activate automatically for any
+             consumer, with zero extra wiring. Not required for tenant-core's own operation. -->
+        <dependency>
+            <groupId>com.holon-platform.core</groupId>
+            <artifactId>holon-core</artifactId>
+            <version>${holon-core.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!--
+            Spring Boot 4's autoconfigure modularization moved @EntityScan/EntityScanPackages
+            out of spring-boot-autoconfigure into this standalone module (the same pattern
+            that moved Flyway auto-configuration into spring-boot-flyway).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-persistence</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Optional: backs TenantScopedEventListenerAspect, which auto-binds TenantContext
+             around @EventListener methods receiving a TenantScopedEvent. Skipped gracefully
+             (no aspect bean registered) when AspectJ is not on the consuming application's
+             classpath — see TenantCoreAutoConfiguration's @ConditionalOnClass guard. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-aop</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions><exclusion><groupId>org.junit.vintage</groupId><artifactId>junit-vintage-engine</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>com.holonplatform.multitenant.core</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                        BeanIntrospector.get() is an explicitly JVM/classloader-wide singleton
+                        (see TenantCoreBeanPropertyFix's own Javadoc). TenantCoreBeanPropertyFixTest
+                        permanently registers a global BeanPropertyPostProcessor on it that silently
+                        excludes ANY class's no-field/no-write-method properties for the rest of that
+                        JVM's lifetime — which would otherwise contaminate HolonEntityMappingValidatorTest
+                        (and any other test introspecting a bean's raw, un-augmented shape) if both
+                        happened to run in the same Surefire fork. reuseForks=false gives every test
+                        class its own fresh JVM, eliminating this entire category of static-singleton
+                        test-order flakiness.
+                    -->
+                    <reuseForks>false</reuseForks>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+

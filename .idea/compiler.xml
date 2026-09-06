@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="holon-vaadin-flow-tenant-audit" />
+        <module name="holon-starter-vaadin-flow-saas" />
+        <module name="holon-vaadin-flow-tenant-limits" />
+        <module name="holon-vaadin-flow-tenant-admin" />
+        <module name="holon-vaadin-flow-tenant-settings" />
+        <module name="holon-vaadin-flow-tenant-whatsapp" />
+        <module name="holon-vaadin-flow-tenant-users" />
+        <module name="holon-vaadin-flow-tenant-quotas" />
+        <module name="holon-vaadin-flow-tenant-billing" />
+        <module name="holon-vaadin-flow-tenant-permissions" />
+        <module name="holon-vaadin-flow-tenant-core" />
+        <module name="holon-vaadin-flow-tenant-onboarding" />
+        <module name="holon-vaadin-flow-tenant-data" />
+        <module name="holon-vaadin-flow-tenant-security" />
+        <module name="holon-vaadin-flow-tenant-invitations" />
+        <module name="holon-multi-tenant-signup" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="app-saas" target="25" />
+      <module name="holon-saas-demo" target="25" />
+      <module name="holon-vaadin-flow-tenant-vaadin" target="25" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="holon-vaadin-flow-tenant-audit" options="-parameters" />
+    </option>
+  </component>
+</project>
