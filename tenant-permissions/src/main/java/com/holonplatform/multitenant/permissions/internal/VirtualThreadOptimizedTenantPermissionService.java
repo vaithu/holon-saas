@@ -5,11 +5,11 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.holonplatform.auth.AuthContext;
 import com.holonplatform.multitenant.TenantContext;
+import com.holonplatform.multitenant.TenantUserRoleResolver;
+import com.holonplatform.multitenant.TenantUserRoleResolver.ResolvedTenantUserRole;
 import com.holonplatform.multitenant.permissions.RolePermissions;
 import com.holonplatform.multitenant.permissions.TenantPermissionService;
 import com.holonplatform.multitenant.permissions.view.TenantRoleManagementService;
-import com.holonplatform.multitenant.users.TenantUser;
-import com.holonplatform.multitenant.users.TenantUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -67,7 +67,7 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
             VirtualThreadOptimizedTenantPermissionService.class);
 
     private final TenantPermissionDatastoreHelper datastoreHelper;
-    private final TenantUserService tenantUserService;
+    private final TenantUserRoleResolver tenantUserRoleResolver;
     private final ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider;
 
     // ── Virtual Thread-optimized user cache ────────────────────────────────────
@@ -82,9 +82,9 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
      * - Auto-cleanup via internal scheduler
      *
      * Key format: "{tenantId}|{email}"
-     * Value: Resolved TenantUser for permission checking
+     * Value: Resolved role information for permission checking
      */
-    private final Cache<String, TenantUser> userResolutionCache = Caffeine.newBuilder()
+    private final Cache<String, ResolvedTenantUserRole> userResolutionCache = Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofSeconds(30))  // Auto-cleanup for VT longevity
             .maximumSize(10_000)                       // Bounded memory
             .recordStats()                             // Enable monitoring
@@ -92,10 +92,10 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
 
     public VirtualThreadOptimizedTenantPermissionService(
             TenantPermissionDatastoreHelper datastoreHelper,
-            TenantUserService tenantUserService,
+            TenantUserRoleResolver tenantUserRoleResolver,
             ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider) {
         this.datastoreHelper = Objects.requireNonNull(datastoreHelper, "datastoreHelper must not be null");
-        this.tenantUserService = Objects.requireNonNull(tenantUserService, "tenantUserService must not be null");
+        this.tenantUserRoleResolver = Objects.requireNonNull(tenantUserRoleResolver, "tenantUserRoleResolver must not be null");
         this.roleManagementServiceProvider = Objects.requireNonNull(
                 roleManagementServiceProvider, "roleManagementServiceProvider must not be null");
         log.info("Initialized VirtualThreadOptimizedTenantPermissionService with Caffeine cache");
@@ -124,7 +124,7 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
         }
         return TenantContext.get()
                 .flatMap(tenant -> resolveCurrentTenantUser(tenant.tenantId()))
-                .map(user -> hasPermission(user, permission))
+                .map(role -> hasPermission(role, permission))
                 .orElse(false);
     }
 
@@ -176,13 +176,13 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
     // ── Virtual Thread-optimized user resolution ────────────────────────────────
 
     /**
-     * Resolves the current authenticated user with Caffeine caching.
+     * Resolves the current authenticated user's role information with Caffeine caching.
      * Eliminates repeated database queries within a 30-second window.
      *
      * @param tenantId the tenant identifier
-     * @return the resolved tenant user if authenticated
+     * @return the resolved user role information if authenticated
      */
-    private Optional<TenantUser> resolveCurrentTenantUser(String tenantId) {
+    private Optional<ResolvedTenantUserRole> resolveCurrentTenantUser(String tenantId) {
         return AuthContext.getCurrent()
                 .flatMap(auth -> auth.getAuthentication())
                 .map(a -> a.getName())  // Typically email in this system
@@ -190,27 +190,26 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
                     String cacheKey = tenantId + "|" + email;
 
                     // Caffeine handles all caching + cleanup automatically
-                    TenantUser user = userResolutionCache.get(cacheKey, key ->
-                            tenantUserService.findByEmail(tenantId, email).orElse(null)
+                    ResolvedTenantUserRole role = userResolutionCache.get(cacheKey, key ->
+                            tenantUserRoleResolver.resolve(tenantId, email).orElse(null)
                     );
 
-                    return Optional.ofNullable(user);
+                    return Optional.ofNullable(role);
                 });
     }
 
     /**
-     * Checks if the given user has the specified permission.
+     * Checks if the given user role has the specified permission.
      *
-     * <p>Checks the user's job-specific role (stored in {@code attributes}) first,
-     * falling back to the platform {@code TenantRole} name. Both checks honor the
-     * wildcard {@code "*"} permission via {@link #hasPermission(String, String, String)}.
+     * <p>Checks the user's job-specific role first, falling back to the platform role.
+     * Both checks honor the wildcard {@code "*"} permission via
+     * {@link #hasPermission(String, String, String)}.
      */
-    private boolean hasPermission(TenantUser user, String permission) {
-        String jobRole = user.getAttributes() != null ? user.getAttributes().get(JOB_ROLE_ATTRIBUTE) : null;
-        if (jobRole != null && hasPermission(user.getTenantId(), jobRole, permission)) {
+    private boolean hasPermission(ResolvedTenantUserRole role, String permission) {
+        if (role.jobRole() != null && hasPermission(role.tenantId(), role.jobRole(), permission)) {
             return true;
         }
-        return hasPermission(user.getTenantId(), user.getRole().name(), permission);
+        return hasPermission(role.tenantId(), role.platformRole(), permission);
     }
 
     // ── Monitoring & Metrics ─────────────────────────────────────────────────────

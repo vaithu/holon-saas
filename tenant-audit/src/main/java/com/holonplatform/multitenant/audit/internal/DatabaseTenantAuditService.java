@@ -4,7 +4,7 @@ import com.holonplatform.multitenant.audit.AuditAction;
 import com.holonplatform.multitenant.audit.AuditEntry;
 import com.holonplatform.multitenant.audit.AuditSeverity;
 import com.holonplatform.multitenant.audit.TenantAuditService;
-import com.holonplatform.multitenant.security.aop.HolonPermission;
+import com.holonplatform.multitenant.permissions.annotation.RequiresPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,7 +39,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional
-    @HolonPermission({"AUDIT_WRITE", "ADMIN"})
+    @RequiresPermission({"AUDIT_WRITE", "ADMIN"})
     public void log(AuditEntry entry) {
         Objects.requireNonNull(entry, "entry must not be null");
 
@@ -57,7 +57,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public List<AuditEntry> findByTenant(String tenantId, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         validatePagination(offset, limit);
@@ -70,7 +70,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public List<AuditEntry> findByTenantAndAction(String tenantId, AuditAction action, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(action, "action must not be null");
@@ -85,7 +85,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public List<AuditEntry> findByTenantAndSeverity(String tenantId, AuditSeverity severity, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(severity, "severity must not be null");
@@ -100,7 +100,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public Optional<AuditEntry> findLatest(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         return datastoreHelper.findFirstByTenantIdOrderByCreatedAtDesc(tenantId);
@@ -110,7 +110,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public long count(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         return datastoreHelper.countByTenantId(tenantId);
@@ -118,7 +118,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"AUDIT_VIEW", "ADMIN"})
+    @RequiresPermission({"AUDIT_VIEW", "ADMIN"})
     public long countBySeverity(String tenantId, AuditSeverity severity) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(severity, "severity must not be null");
@@ -129,7 +129,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     @Override
     @Transactional
-    @HolonPermission("ADMIN")
+    @RequiresPermission("ADMIN")
     public void deleteAll(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         long count = datastoreHelper.countByTenantId(tenantId);

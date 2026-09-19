@@ -72,7 +72,7 @@
         </dependency>
         <dependency>
             <groupId>com.holon-platform.multi-tenancy</groupId>
-            <artifactId>holon-multi-tenant-security</artifactId>
+            <artifactId>holon-multi-tenant-permissions</artifactId>
         </dependency>
     </dependencies>
     <build>

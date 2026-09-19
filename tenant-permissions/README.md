@@ -252,6 +252,14 @@ against `TenantPermissionService`'s own role→permission store (`setPermissions
 public void approveInvoice(Long id) { ... }
 ```
 
+For the common "this permission, **or** a blanket admin override" pattern, pass multiple flat
+keys — the current user needs only one of them (OR logic):
+
+```java
+@RequiresPermission({"USER_INVITE", "ADMIN"})
+public TenantUser invite(String tenantId, String userId, String email, TenantRole role) { ... }
+```
+
 > **Only one of these two stores backs any given key.** A `"viewId:ACTION"` key (containing
 > `:`) always resolves against the view/action matrix; a plain key never does. Don't mix the
 > two for the same logical permission — pick `viewId:ACTION` when the permission mirrors a

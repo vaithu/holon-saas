@@ -1,6 +1,6 @@
 package com.holonplatform.multitenant.users.internal;
 
-import com.holonplatform.multitenant.security.aop.HolonPermission;
+import com.holonplatform.multitenant.permissions.annotation.RequiresPermission;
 import com.holonplatform.multitenant.users.TenantRole;
 import com.holonplatform.multitenant.users.TenantUser;
 import com.holonplatform.multitenant.users.TenantUserException;
@@ -41,7 +41,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission({"USER_INVITE", "ADMIN"})
+    @RequiresPermission({"USER_INVITE", "ADMIN"})
     public TenantUser invite(String tenantId, String userId, String email, TenantRole role) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(userId, "userId must not be null");
@@ -67,7 +67,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission({"USER_MANAGE", "ADMIN"})
+    @RequiresPermission({"USER_MANAGE", "ADMIN"})
     public TenantUser activate(String tenantId, String userId) {
         TenantUser user = requireUser(tenantId, userId);
         if (user.getStatus() == TenantUserStatus.REMOVED) {
@@ -82,7 +82,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission({"USER_MANAGE", "ADMIN"})
+    @RequiresPermission({"USER_MANAGE", "ADMIN"})
     public TenantUser suspend(String tenantId, String userId) {
         TenantUser user = requireUser(tenantId, userId);
         if (user.getStatus() != TenantUserStatus.ACTIVE) {
@@ -99,7 +99,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission("ADMIN")
+    @RequiresPermission("ADMIN")
     public void remove(String tenantId, String userId) {
         TenantUser user = requireUser(tenantId, userId);
 
@@ -116,7 +116,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission("ADMIN")
+    @RequiresPermission("ADMIN")
     public TenantUser changeRole(String tenantId, String userId, TenantRole newRole) {
         Objects.requireNonNull(newRole, "newRole must not be null");
         TenantUser user = requireUser(tenantId, userId);
@@ -152,7 +152,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public Optional<TenantUser> findById(String tenantId, String userId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(userId, "userId must not be null");
@@ -163,7 +163,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public Optional<TenantUser> findByEmail(String tenantId, String email) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(email, "email must not be null");
@@ -174,7 +174,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public List<TenantUser> findByTenant(String tenantId, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         validatePagination(offset, limit);
@@ -188,7 +188,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public List<TenantUser> findByRole(String tenantId, TenantRole role, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(role, "role must not be null");
@@ -202,7 +202,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public List<TenantUser> findByStatus(String tenantId, TenantUserStatus status, int offset, int limit) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(status, "status must not be null");
@@ -217,7 +217,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public long count(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         return datastoreHelper.countByTenantId(tenantId);
@@ -225,7 +225,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional(readOnly = true)
-    @HolonPermission({"USER_VIEW", "ADMIN"})
+    @RequiresPermission({"USER_VIEW", "ADMIN"})
     public long countByStatus(String tenantId, TenantUserStatus status) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(status, "status must not be null");
@@ -236,7 +236,7 @@ public class DatabaseTenantUserService implements TenantUserService {
 
     @Override
     @Transactional
-    @HolonPermission("ADMIN")
+    @RequiresPermission("ADMIN")
     public void deleteAll(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
 

@@ -1,6 +1,7 @@
 package com.holonplatform.multitenant.permissions.config;
 
 import com.holonplatform.core.datastore.Datastore;
+import com.holonplatform.multitenant.TenantUserRoleResolver;
 import com.holonplatform.multitenant.permissions.TenantPermissionService;
 import com.holonplatform.multitenant.permissions.internal.*;
 import com.holonplatform.multitenant.permissions.view.SystemDefaultPermissionRegistry;
@@ -11,7 +12,6 @@ import com.holonplatform.multitenant.permissions.view.ViewRegistry;
 import com.holonplatform.multitenant.permissions.view.internal.DefaultSystemDefaultPermissionRegistry;
 import com.holonplatform.multitenant.permissions.view.internal.DefaultTenantRoleManagementService;
 import com.holonplatform.multitenant.permissions.view.internal.DefaultViewRegistry;
-import com.holonplatform.multitenant.users.TenantUserService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -112,14 +112,14 @@ public class TenantPermissionAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean({TenantRoleManagementDatastoreHelper.class, TenantUserService.class})
+    @ConditionalOnBean({TenantRoleManagementDatastoreHelper.class, TenantUserRoleResolver.class})
     @ConditionalOnMissingBean(TenantRoleManagementService.class)
     public DefaultTenantRoleManagementService tenantRoleManagementService(
             TenantRoleManagementDatastoreHelper datastoreHelper,
             ViewRegistry viewRegistry,
             SystemDefaultPermissionRegistry defaultPermissionRegistry,
-            TenantUserService tenantUserService) {
-        return new DefaultTenantRoleManagementService(datastoreHelper, viewRegistry, defaultPermissionRegistry, tenantUserService);
+            TenantUserRoleResolver tenantUserRoleResolver) {
+        return new DefaultTenantRoleManagementService(datastoreHelper, viewRegistry, defaultPermissionRegistry, tenantUserRoleResolver);
     }
 
     @Bean
@@ -137,13 +137,13 @@ public class TenantPermissionAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean({TenantPermissionDatastoreHelper.class, TenantUserService.class})
+    @ConditionalOnBean({TenantPermissionDatastoreHelper.class, TenantUserRoleResolver.class})
     @ConditionalOnMissingBean(TenantPermissionService.class)
     public VirtualThreadOptimizedTenantPermissionService virtualThreadOptimizedPermissionService(
             TenantPermissionDatastoreHelper datastoreHelper,
-            TenantUserService tenantUserService,
+            TenantUserRoleResolver tenantUserRoleResolver,
             org.springframework.beans.factory.ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider) {
-        return new VirtualThreadOptimizedTenantPermissionService(datastoreHelper, tenantUserService, roleManagementServiceProvider);
+        return new VirtualThreadOptimizedTenantPermissionService(datastoreHelper, tenantUserRoleResolver, roleManagementServiceProvider);
     }
 
     @Bean

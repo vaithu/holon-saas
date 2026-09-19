@@ -41,12 +41,16 @@ public class PermissionAspect {
     }
 
     private void enforce(RequiresPermission annotation) {
-        String permission = annotation.value();
-        log.trace("@RequiresPermission check for '{}'", permission);
-        if (!permissionService.currentUserHasPermission(permission)) {
-            log.debug("@RequiresPermission('{}') denied for current user", permission);
-            throw new PermissionDeniedException(permission, annotation.message());
+        String[] permissions = annotation.value();
+        log.trace("@RequiresPermission check for {}", java.util.Arrays.toString(permissions));
+        for (String permission : permissions) {
+            if (permissionService.currentUserHasPermission(permission)) {
+                return;
+            }
         }
+        String joined = String.join(" OR ", permissions);
+        log.debug("@RequiresPermission({}) denied for current user", joined);
+        throw new PermissionDeniedException(joined, annotation.message());
     }
 }
 

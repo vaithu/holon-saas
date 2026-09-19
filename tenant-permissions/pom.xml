@@ -20,10 +20,6 @@
             <groupId>com.holon-platform.multi-tenancy</groupId>
             <artifactId>holon-multi-tenant-core</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.holon-platform.multi-tenancy</groupId>
-            <artifactId>holon-multi-tenant-users</artifactId>
-        </dependency>
         <!-- holon-core auth: Permission interface, Account, Realm, Authenticator -->
         <dependency>
             <groupId>com.holon-platform.core</groupId>

@@ -1,11 +1,11 @@
 package com.holonplatform.multitenant.permissions.config;
 
+import com.holonplatform.multitenant.TenantUserRoleResolver;
 import com.holonplatform.multitenant.permissions.TenantPermissionService;
 import com.holonplatform.multitenant.permissions.internal.PermissionAspect;
 import com.holonplatform.multitenant.permissions.internal.PermissionEntity;
 import com.holonplatform.multitenant.permissions.internal.TenantPermissionDatastoreHelper;
 import com.holonplatform.multitenant.permissions.internal.VirtualThreadOptimizedTenantPermissionService;
-import com.holonplatform.multitenant.users.TenantUserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -31,7 +31,7 @@ class TenantPermissionAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TenantPermissionAutoConfiguration.class))
-            .withBean(TenantUserService.class, () -> mock(TenantUserService.class))
+            .withBean(TenantUserRoleResolver.class, () -> mock(TenantUserRoleResolver.class))
             .withUserConfiguration(DatastoreHelperConfig.class);
 
     @Test

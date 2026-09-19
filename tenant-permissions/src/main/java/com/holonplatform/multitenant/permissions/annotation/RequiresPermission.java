@@ -8,8 +8,9 @@ import java.lang.annotation.Target;
 /**
  * Enforces a permission check on a Spring-managed method or class.
  *
- * <p>When applied to a method, the current user must have the specified permission
- * (resolved via {@link com.holonplatform.multitenant.permissions.TenantPermissionService#currentUserHasPermission})
+ * <p>When applied to a method, the current user must have <strong>at least one</strong> of
+ * the specified permissions (OR logic, resolved via
+ * {@link com.holonplatform.multitenant.permissions.TenantPermissionService#currentUserHasPermission})
  * or a {@link com.holonplatform.multitenant.permissions.exception.PermissionDeniedException} is thrown.</p>
  *
  * <p>Usage example:</p>
@@ -20,7 +21,7 @@ import java.lang.annotation.Target;
  *     {@literal @}RequiresPermission("VIEW_FINANCIALS")
  *     public List{@literal <}Invoice{@literal >} getInvoices() { ... }
  *
- *     {@literal @}RequiresPermission("APPROVE_INVOICE")
+ *     {@literal @}RequiresPermission({"APPROVE_INVOICE", "ADMIN"})
  *     public void approveInvoice(Long id) { ... }
  * }
  * </pre>
@@ -30,10 +31,12 @@ import java.lang.annotation.Target;
 public @interface RequiresPermission {
 
     /**
-     * The permission string that the current user must have.
+     * The permission string(s) that the current user must have. If more than one value is
+     * given, the user needs only one of them (OR logic) — matching the pattern commonly used
+     * to grant either a specific permission or a blanket role such as {@code "ADMIN"}.
      * Should match a key registered in {@link com.holonplatform.multitenant.permissions.TenantPermissionService}.
      */
-    String value();
+    String[] value();
 
     /**
      * Optional human-readable message included in the exception when access is denied.

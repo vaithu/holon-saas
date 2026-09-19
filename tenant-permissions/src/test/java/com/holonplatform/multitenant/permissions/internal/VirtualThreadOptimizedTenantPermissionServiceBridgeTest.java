@@ -2,8 +2,8 @@ package com.holonplatform.multitenant.permissions.internal;
 
 import com.holonplatform.multitenant.TenantContext;
 import com.holonplatform.multitenant.TenantDetails;
+import com.holonplatform.multitenant.TenantUserRoleResolver;
 import com.holonplatform.multitenant.permissions.view.TenantRoleManagementService;
-import com.holonplatform.multitenant.users.TenantUserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -49,33 +48,34 @@ class VirtualThreadOptimizedTenantPermissionServiceBridgeTest {
     @DisplayName("'viewId:ACTION' key delegates to TenantRoleManagementService when available")
     void delegatesViewActionKeyToRoleManagementService() {
         TenantPermissionDatastoreHelper datastoreHelper = mock(TenantPermissionDatastoreHelper.class);
-        TenantUserService tenantUserService = mock(TenantUserService.class);
+        TenantUserRoleResolver roleResolver = mock(TenantUserRoleResolver.class);
         TenantRoleManagementService roleManagementService = mock(TenantRoleManagementService.class);
         when(roleManagementService.currentUserCanPerformAction("customer-details", "CREATE")).thenReturn(true);
 
         VirtualThreadOptimizedTenantPermissionService service = new VirtualThreadOptimizedTenantPermissionService(
-                datastoreHelper, tenantUserService, providerReturning(roleManagementService));
+                datastoreHelper, roleResolver, providerReturning(roleManagementService));
 
         authenticateAs("acme", "alice@acme.com");
 
         assertThat(service.currentUserHasPermission("customer-details:CREATE")).isTrue();
         verify(roleManagementService).currentUserCanPerformAction("customer-details", "CREATE");
         verifyNoInteractions(datastoreHelper);
+        verifyNoInteractions(roleResolver);
     }
 
     @Test
     @DisplayName("'viewId:ACTION' key falls back to the flat store when no TenantRoleManagementService bean exists")
     void fallsBackToFlatStoreWhenRoleManagementServiceMissing() {
         TenantPermissionDatastoreHelper datastoreHelper = mock(TenantPermissionDatastoreHelper.class);
-        TenantUserService tenantUserService = mock(TenantUserService.class);
-        when(tenantUserService.findByEmail(anyString(), anyString())).thenReturn(Optional.empty());
+        TenantUserRoleResolver roleResolver = mock(TenantUserRoleResolver.class);
+        when(roleResolver.resolve(anyString(), anyString())).thenReturn(Optional.empty());
 
         VirtualThreadOptimizedTenantPermissionService service = new VirtualThreadOptimizedTenantPermissionService(
-                datastoreHelper, tenantUserService, providerReturning(null));
+                datastoreHelper, roleResolver, providerReturning(null));
 
         authenticateAs("acme", "alice@acme.com");
 
-        // No user resolved (no TenantUser record) -> flat-store path returns false, never throws
+        // No user resolved (unknown user) -> flat-store path returns false, never throws
         assertThat(service.currentUserHasPermission("customer-details:CREATE")).isFalse();
         verifyNoInteractions(datastoreHelper);
     }
@@ -84,12 +84,12 @@ class VirtualThreadOptimizedTenantPermissionServiceBridgeTest {
     @DisplayName("plain keys with no colon always use the flat permission store, never the view matrix")
     void plainKeyUsesFlatStore() {
         TenantPermissionDatastoreHelper datastoreHelper = mock(TenantPermissionDatastoreHelper.class);
-        TenantUserService tenantUserService = mock(TenantUserService.class);
-        when(tenantUserService.findByEmail(anyString(), anyString())).thenReturn(Optional.empty());
+        TenantUserRoleResolver roleResolver = mock(TenantUserRoleResolver.class);
+        when(roleResolver.resolve(anyString(), anyString())).thenReturn(Optional.empty());
         TenantRoleManagementService roleManagementService = mock(TenantRoleManagementService.class);
 
         VirtualThreadOptimizedTenantPermissionService service = new VirtualThreadOptimizedTenantPermissionService(
-                datastoreHelper, tenantUserService, providerReturning(roleManagementService));
+                datastoreHelper, roleResolver, providerReturning(roleManagementService));
 
         authenticateAs("acme", "alice@acme.com");
 

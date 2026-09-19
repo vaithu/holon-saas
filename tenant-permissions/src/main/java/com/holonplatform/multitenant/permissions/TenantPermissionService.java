@@ -37,7 +37,7 @@ public interface TenantPermissionService {
      * <p>The permission service checks this attribute first when resolving
      * {@link #currentUserHasPermission(String)}.
      */
-    String JOB_ROLE_ATTRIBUTE = "job_role";
+    String JOB_ROLE_ATTRIBUTE = com.holonplatform.multitenant.TenantUserRoleResolver.JOB_ROLE_ATTRIBUTE;
 
     /**
      * Replaces the full permission set for a role in a tenant.

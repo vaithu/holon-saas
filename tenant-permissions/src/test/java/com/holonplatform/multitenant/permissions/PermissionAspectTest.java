@@ -4,13 +4,10 @@ import com.holonplatform.multitenant.TenantContext;
 import com.holonplatform.multitenant.TenantDetails;
 import com.holonplatform.multitenant.TenantPlan;
 import com.holonplatform.multitenant.TenantStatus;
+import com.holonplatform.multitenant.TenantUserRoleResolver;
 import com.holonplatform.multitenant.permissions.annotation.RequiresPermission;
 import com.holonplatform.multitenant.permissions.exception.PermissionDeniedException;
 import com.holonplatform.multitenant.permissions.internal.PermissionAspect;
-import com.holonplatform.multitenant.users.TenantRole;
-import com.holonplatform.multitenant.users.TenantUser;
-import com.holonplatform.multitenant.users.TenantUserService;
-import com.holonplatform.multitenant.users.TenantUserStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,13 +60,8 @@ class PermissionAspectTest {
                 .plan(TenantPlan.PROFESSIONAL).status(TenantStatus.ACTIVE).build());
         SecurityContextHolder.getContext().setAuthentication(
                 new TestingAuthenticationToken(email, "n/a", "ROLE_USER"));
-        TenantUser user = TenantUser.builder("u1", "acme", email)
-                .role(TenantRole.MEMBER)
-                .status(TenantUserStatus.ACTIVE)
-                .attribute(TenantPermissionService.JOB_ROLE_ATTRIBUTE, jobRole)
-                .build();
-        when(TestConfig.userService().findByEmail("acme", email))
-                .thenReturn(Optional.of(user));
+        TestConfig.roleResolver().put("acme", email,
+                new TenantUserRoleResolver.ResolvedTenantUserRole("acme", "MEMBER", jobRole));
     }
 
     // ── method-level annotation ───────────────────────────────────────────────
@@ -170,10 +162,10 @@ class PermissionAspectTest {
     static class FakeTenantPermissionService implements TenantPermissionService {
 
         private final Map<String, Map<String, Set<String>>> store = new ConcurrentHashMap<>();
-        private final TenantUserService tenantUserService;
+        private final FakeTenantUserRoleResolver roleResolver;
 
-        FakeTenantPermissionService(TenantUserService tenantUserService) {
-            this.tenantUserService = tenantUserService;
+        FakeTenantPermissionService(FakeTenantUserRoleResolver roleResolver) {
+            this.roleResolver = roleResolver;
         }
 
         @Override
@@ -226,15 +218,15 @@ class PermissionAspectTest {
             if (auth == null || !auth.isAuthenticated()) {
                 return false;
             }
-            TenantUser user = tenantUserService.findByEmail(tenantId, auth.getName()).orElse(null);
-            if (user == null) {
+            TenantUserRoleResolver.ResolvedTenantUserRole role =
+                    roleResolver.resolve(tenantId, auth.getName()).orElse(null);
+            if (role == null) {
                 return false;
             }
-            String jobRole = user.getAttributes().get(JOB_ROLE_ATTRIBUTE);
-            if (jobRole != null && hasPermission(tenantId, jobRole, permission)) {
+            if (role.jobRole() != null && hasPermission(tenantId, role.jobRole(), permission)) {
                 return true;
             }
-            return hasPermission(tenantId, user.getRole().name(), permission);
+            return hasPermission(tenantId, role.platformRole(), permission);
         }
 
         @Override
@@ -256,23 +248,42 @@ class PermissionAspectTest {
         }
     }
 
+    /**
+     * Minimal in-memory {@link TenantUserRoleResolver} test fixture — stands in for the
+     * real implementation shipped by {@code holon-multi-tenant-users}
+     * ({@code TenantUserServiceRoleResolver}), which this module no longer depends on.
+     */
+    static class FakeTenantUserRoleResolver implements TenantUserRoleResolver {
+
+        private final Map<String, TenantUserRoleResolver.ResolvedTenantUserRole> roles = new ConcurrentHashMap<>();
+
+        void put(String tenantId, String email, TenantUserRoleResolver.ResolvedTenantUserRole role) {
+            roles.put(tenantId + "|" + email, role);
+        }
+
+        @Override
+        public Optional<ResolvedTenantUserRole> resolve(String tenantId, String email) {
+            return Optional.ofNullable(roles.get(tenantId + "|" + email));
+        }
+    }
+
     @Configuration
     @EnableAspectJAutoProxy
     static class TestConfig {
 
-        private static TenantUserService userServiceInstance;
+        private static FakeTenantUserRoleResolver roleResolverInstance;
 
-        static TenantUserService userService() { return userServiceInstance; }
+        static FakeTenantUserRoleResolver roleResolver() { return roleResolverInstance; }
 
         @Bean
-        TenantUserService tenantUserService() {
-            userServiceInstance = mock(TenantUserService.class);
-            return userServiceInstance;
+        FakeTenantUserRoleResolver tenantUserRoleResolver() {
+            roleResolverInstance = new FakeTenantUserRoleResolver();
+            return roleResolverInstance;
         }
 
         @Bean
-        FakeTenantPermissionService tenantPermissionService(TenantUserService tenantUserService) {
-            return new FakeTenantPermissionService(tenantUserService);
+        FakeTenantPermissionService tenantPermissionService(FakeTenantUserRoleResolver tenantUserRoleResolver) {
+            return new FakeTenantPermissionService(tenantUserRoleResolver);
         }
 
         @Bean
