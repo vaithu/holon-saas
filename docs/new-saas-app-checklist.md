@@ -66,6 +66,15 @@ holon.tenant.data.schema-strategy=SCHEMA_PER_TENANT
 # SQL syntax errors (e.g. Postgres' "SET search_path" sent to an H2 database) that only
 # surface once schema switching actually runs.
 holon.tenant.data.dialect=H2
+
+# ─── Virtual Threads (required for the concurrency this platform is designed for) ─────
+# This starter's high-concurrency design (Virtual Thread-optimized tenant permission/user
+# resolution caches, TenantAwareTaskDecorator, etc.) assumes requests are dispatched on
+# Virtual Threads, not the servlet container's default bounded platform-thread pool
+# (Tomcat's default is ~200 threads — nowhere near enough for thousands of concurrent
+# users). Requires Java 21+. If this is missing or false, HolonSaasAutoConfiguration logs
+# a WARN at startup to catch it before it becomes a silent production capacity ceiling.
+spring.threads.virtual.enabled=true
 ```
 
 ### Required beans
@@ -410,3 +419,10 @@ Quick summary — before shipping, confirm:
   spanning both platform and tenant schemas.
 - [ ] You have at least one real, end-to-end signup integration test (not just unit tests with
   hand-constructed, non-Spring-managed objects).
+- [ ] `spring.threads.virtual.enabled=true` is set (Java 21+) — check the app log at startup
+  for `HolonSaasAutoConfiguration`'s WARN; without it, the platform-thread pool (not Virtual
+  Threads) caps your real concurrency far below what the caching/service design assumes.
+- [ ] For deployments expecting high concurrency across **multiple app instances** behind a
+  load balancer, be aware the tenant-permission caches and `TokenBucketRateLimiter` are
+  per-instance (in-memory) — a tenant's effective rate limit scales with instance count, and
+  each instance independently re-resolves permissions after its own cache TTL expires.

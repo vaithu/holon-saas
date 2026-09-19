@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * Aggregating Spring Boot auto-configuration for the <strong>Holon SaaS Starter</strong>.
@@ -82,11 +83,52 @@ public class HolonSaasAutoConfiguration {
      * Logs a single INFO line once all SaaS modules have been initialised.
      * The bean is intentionally {@code static} so it can be created before any
      * other beans in this configuration are processed.
+     *
+     * <p>Also checks whether the host application has enabled Java Virtual Threads and warns
+     * if not — see {@link #checkVirtualThreadsEnabled(Environment)}.
      */
     @Bean
-    public static HolonSaasReadyMarker holonSaasReadyMarker() {
+    public static HolonSaasReadyMarker holonSaasReadyMarker(Environment environment) {
         log.info("Holon SaaS starter is ready — all multi-tenant modules initialised.");
+        checkVirtualThreadsEnabled(environment);
         return new HolonSaasReadyMarker();
+    }
+
+    /**
+     * Several modules in this starter (e.g. {@code VirtualThreadOptimizedTenantPermissionService},
+     * the request-scoped user-resolution/permission-evaluation caches, {@code TenantAwareTaskDecorator})
+     * are designed around Java Virtual Threads and are only expected to sustain very high concurrency
+     * (thousands of concurrent requests) when the embedded servlet container actually dispatches
+     * requests on virtual threads rather than a bounded platform-thread pool (Tomcat's default is
+     * ~200 threads).
+     *
+     * <p>Spring Boot only enables this when the application explicitly sets
+     * {@code spring.threads.virtual.enabled=true} (and runs on Java 21+). This starter cannot force
+     * that setting itself — it is a JVM/servlet-container-wide toggle owned by the host application,
+     * not by an individual auto-configuration — so it logs a one-time warning instead, to avoid a
+     * silent, easy-to-miss capacity ceiling in production.
+     */
+    private static void checkVirtualThreadsEnabled(Environment environment) {
+        boolean virtualThreadsEnabled = environment.getProperty(
+                "spring.threads.virtual.enabled", Boolean.class, Boolean.FALSE);
+        if (!virtualThreadsEnabled) {
+            log.warn("Virtual Threads are NOT enabled ('spring.threads.virtual.enabled' is not "
+                    + "'true'). This starter's high-concurrency design (tenant permission/user "
+                    + "resolution caches, Virtual Thread-optimized services) assumes requests run on "
+                    + "Virtual Threads. Without it, the embedded servlet container falls back to a "
+                    + "bounded platform-thread pool (e.g. Tomcat's default ~200 threads), which will "
+                    + "cap concurrency well below what this platform is designed to sustain. Set "
+                    + "'spring.threads.virtual.enabled=true' in the application configuration "
+                    + "(requires Java 21+).");
+            return;
+        }
+        int javaFeatureVersion = Runtime.version().feature();
+        if (javaFeatureVersion < 21) {
+            log.warn("'spring.threads.virtual.enabled' is set to 'true' but the running JVM is "
+                    + "Java {}. Virtual Threads require Java 21+ — this setting has no effect and "
+                    + "the application is still running on a bounded platform-thread pool.",
+                    javaFeatureVersion);
+        }
     }
 
     /**
