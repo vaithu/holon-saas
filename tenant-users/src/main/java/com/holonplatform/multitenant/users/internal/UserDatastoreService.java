@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.users.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.users.TenantRole;
 import com.holonplatform.multitenant.users.TenantUser;
 import com.holonplatform.multitenant.users.TenantUserProperties;
@@ -34,6 +35,10 @@ public class UserDatastoreService {
     private final BeanDatastoreHelper<TenantUser> beanDatastoreHelper;
 
     public UserDatastoreService(Datastore dataStore) {
+        // See TenantUserDatastoreHelper: register the exclusion rule before Holon caches
+        // TenantUser's PropertySet, so the computed "active" getter and synthetic
+        // "attributes.empty" sub-property never leak into generated HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.beanDatastoreHelper = BeanDatastoreHelper.of(dataStore, TenantUser.class);
     }
 

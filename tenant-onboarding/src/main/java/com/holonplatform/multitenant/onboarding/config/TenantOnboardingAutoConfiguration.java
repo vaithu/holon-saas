@@ -1,8 +1,10 @@
 package com.holonplatform.multitenant.onboarding.config;
 
+import com.holonplatform.multitenant.CachingTenantDetailsLoader;
 import com.holonplatform.multitenant.TenantDetailsLoader;
 import com.holonplatform.multitenant.TenantDetailsRepository;
 import com.holonplatform.multitenant.TenantDetailsRepositoryFactory;
+import com.holonplatform.multitenant.config.TenantProperties;
 import com.holonplatform.multitenant.data.migration.TenantSchemaInitializer;
 import com.holonplatform.multitenant.exception.TenantNotFoundException;
 import com.holonplatform.multitenant.onboarding.TenantOnboardingService;
@@ -12,9 +14,13 @@ import com.holonplatform.multitenant.onboarding.internal.DefaultTenantOnboarding
 import com.holonplatform.multitenant.onboarding.internal.TenantDetailsDatastoreHelper;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.Cache;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
@@ -52,6 +58,7 @@ import java.util.Optional;
  */
 @AutoConfiguration
 @org.springframework.boot.autoconfigure.AutoConfigureAfter(com.holonplatform.jpa.spring.boot.JpaAutoConfiguration.class)
+@EnableConfigurationProperties(TenantProperties.class)
 public class TenantOnboardingAutoConfiguration {
 
     /**
@@ -108,6 +115,14 @@ public class TenantOnboardingAutoConfiguration {
      * {@code TenantCoreAutoConfiguration}'s {@code TenantContextFilter} (which only registers
      * once a {@link TenantDetailsLoader} bean is present).
      *
+     * <p>Wrapped in {@link CachingTenantDetailsLoader} when
+     * {@code holon.tenant.details-cache-enabled} is {@code true} (the default) — otherwise every
+     * request reaching a non-ignored path, including each Vaadin Flow UIDL/heartbeat round-trip a
+     * single click triggers, would re-query the database for the same tenant record. Uses whatever
+     * Spring {@link Cache} bean named {@code tenantDetailsCache} is available — e.g. the optional
+     * {@code tenant-cache-redis} module's Redis-backed cache, shared across every application
+     * instance — falling back to a per-JVM Caffeine cache when none is present.
+     *
      * <p>Skipped when the application already declares its own {@link TenantDetailsLoader}
      * bean (e.g. one backed by a cache, or a completely different tenant store than
      * {@link TenantRepository}).
@@ -115,9 +130,17 @@ public class TenantOnboardingAutoConfiguration {
     @Bean
     @ConditionalOnBean(TenantRepository.class)
     @ConditionalOnMissingBean(TenantDetailsLoader.class)
-    public TenantDetailsLoader tenantDetailsLoader(TenantRepository tenantRepository) {
-        return tenantId -> tenantRepository.findById(tenantId)
+    public TenantDetailsLoader tenantDetailsLoader(TenantRepository tenantRepository, TenantProperties properties,
+            @Qualifier("tenantDetailsCache") ObjectProvider<Cache> tenantDetailsCache) {
+        TenantDetailsLoader delegate = tenantId -> tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new TenantNotFoundException(tenantId));
+        if (!properties.isDetailsCacheEnabled()) {
+            return delegate;
+        }
+        Cache cache = tenantDetailsCache.getIfAvailable();
+        return cache != null
+                ? new CachingTenantDetailsLoader(delegate, properties.getDetailsCacheTtlMs(), cache)
+                : new CachingTenantDetailsLoader(delegate, properties.getDetailsCacheTtlMs());
     }
 
     @Bean

@@ -99,6 +99,27 @@ class TenantContextFilterTest {
 	}
 
 	@Test
+	void doFilter_proceedsWithoutContext_whenTenantNotResolved_andRequiredButDeferred() throws Exception {
+		TenantResolver resolver = req -> Optional.empty();
+		TenantDetailsLoader loader = id -> { throw new AssertionError("Should not be called"); };
+
+		TenantContextFilter filter = new TenantContextFilter(resolver, loader);
+		filter.setRequired(true);
+		filter.setDeferMissingTenantToChain(true);
+
+		MockHttpServletRequest request   = new MockHttpServletRequest();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		FilterChain chain = mock(FilterChain.class);
+
+		filter.doFilter(request, response, chain);
+
+		// Deferred to the chain (e.g. Spring Security handles the redirect) — no 400, no context.
+		verify(chain).doFilter(request, response);
+		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(TenantContext.isSet()).isFalse();
+	}
+
+	@Test
 	void doFilter_proceedsWithoutContext_whenTenantNotResolved_andNotRequired() throws Exception {
 		TenantResolver resolver = req -> Optional.empty();
 		TenantDetailsLoader loader = id -> activeTenant(id);

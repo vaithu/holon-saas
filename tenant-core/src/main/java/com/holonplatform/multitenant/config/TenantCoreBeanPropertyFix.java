@@ -42,8 +42,15 @@ import com.holonplatform.core.beans.IgnoreMode;
  * written by any Holon Datastore operation regardless of which bean class it belongs to —
  * so pre-emptively excluding it (rather than crashing) is always the correct behavior.
  * This mirrors {@link BeanIntrospector}'s own singleton, JVM/classloader-wide design.
+ *
+ * <p>Public and callable from other {@code holon-saas} modules: any module that
+ * bean-introspects a shipped entity (e.g. {@code TenantUserDatastoreHelper} calling
+ * {@code BeanDatastoreHelper.of(datastore, TenantUser.class)}) must invoke
+ * {@link #ensureRegistered()} <em>before</em> that first introspection, because Holon's
+ * {@link BeanIntrospector} caches each class's {@code PropertySet} on first use — registering
+ * the rule afterwards is too late for an already-cached (un-fixed) entity.
  */
-final class TenantCoreBeanPropertyFix {
+public final class TenantCoreBeanPropertyFix {
 
 	private static volatile boolean registered = false;
 
@@ -54,7 +61,7 @@ final class TenantCoreBeanPropertyFix {
 	 * Registers the post-processor exactly once per classloader. Safe to call repeatedly
 	 * (e.g. from multiple {@code @Bean} methods or on Spring DevTools restart).
 	 */
-	static synchronized void ensureRegistered() {
+	public static synchronized void ensureRegistered() {
 		if (registered) {
 			return;
 		}

@@ -22,6 +22,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Spring Boot auto-configuration for the multi-tenant core.
@@ -85,8 +86,13 @@ public class TenantCoreAutoConfiguration {
 	/**
 	 * Creates the default {@link TenantResolver} based on the configured strategy.
 	 * Skipped when the application already declares a {@code TenantResolver} bean.
+	 *
+	 * <p>Marked {@link Primary} so it remains the resolver injected by type (e.g. into
+	 * {@link #tenantContextFilterRegistration}) even when auxiliary {@code TenantResolver} beans are
+	 * present — for example tenant-security's authenticated-principal resolver.
 	 */
 	@Bean
+	@Primary
 	@ConditionalOnMissingBean(TenantResolver.class)
 	public TenantResolver tenantResolver(TenantProperties properties) {
 		TenantResolver resolver = switch (properties.getStrategy()) {
@@ -137,6 +143,7 @@ public class TenantCoreAutoConfiguration {
 
 		TenantContextFilter filter = new TenantContextFilter(tenantResolver, tenantDetailsLoader);
 		filter.setRequired(properties.isRequired());
+		filter.setDeferMissingTenantToChain(properties.isDeferMissingTenantToChain());
 		filter.setIgnoredPaths(properties.getIgnoredPaths());
 		filter.setEventPublisher(eventPublisher);
 

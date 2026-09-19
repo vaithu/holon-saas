@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.permissions.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.permissions.PermissionProperties;
 
 import java.util.List;
@@ -24,6 +25,9 @@ public class TenantPermissionDatastoreHelper {
     private final BeanDatastoreHelper<PermissionEntity> helper;
 
     public TenantPermissionDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters / synthetic Map "empty" sub-properties never leak into HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, PermissionEntity.class);
     }
 

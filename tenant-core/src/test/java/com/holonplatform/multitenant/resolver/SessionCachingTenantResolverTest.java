@@ -87,4 +87,54 @@ class SessionCachingTenantResolverTest {
 		assertThatThrownBy(() -> new SessionCachingTenantResolver(null))
 				.isInstanceOf(NullPointerException.class);
 	}
+
+	@Test
+	void cacheTenant_seedsSession_soLaterUnresolvableRequestsFallBack() {
+		MockHttpSession session = new MockHttpSession();
+
+		SessionCachingTenantResolver.cacheTenant(session, "acme");
+
+		assertThat(session.getAttribute(SessionCachingTenantResolver.SESSION_ATTRIBUTE))
+				.isEqualTo("acme");
+
+		// A Vaadin UIDL/heartbeat request that never carried the tenant now resolves from the cache.
+		MockHttpServletRequest uidlRequest = new MockHttpServletRequest("POST", "/");
+		uidlRequest.setSession(session);
+		assertThat(resolver.resolveTenantId(uidlRequest)).contains("acme");
+	}
+
+	@Test
+	void cacheTenant_rejectsNullSession() {
+		assertThatThrownBy(() -> SessionCachingTenantResolver.cacheTenant(null, "acme"))
+				.isInstanceOf(NullPointerException.class);
+	}
+
+	@Test
+	void cacheTenant_rejectsBlankTenantId() {
+		MockHttpSession session = new MockHttpSession();
+		assertThatThrownBy(() -> SessionCachingTenantResolver.cacheTenant(session, "  "))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> SessionCachingTenantResolver.cacheTenant(session, null))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void clearCachedTenant_removesCachedValue() {
+		MockHttpSession session = new MockHttpSession();
+		SessionCachingTenantResolver.cacheTenant(session, "acme");
+
+		SessionCachingTenantResolver.clearCachedTenant(session);
+
+		assertThat(session.getAttribute(SessionCachingTenantResolver.SESSION_ATTRIBUTE)).isNull();
+
+		MockHttpServletRequest uidlRequest = new MockHttpServletRequest("POST", "/");
+		uidlRequest.setSession(session);
+		assertThat(resolver.resolveTenantId(uidlRequest)).isEmpty();
+	}
+
+	@Test
+	void clearCachedTenant_rejectsNullSession() {
+		assertThatThrownBy(() -> SessionCachingTenantResolver.clearCachedTenant(null))
+				.isInstanceOf(NullPointerException.class);
+	}
 }

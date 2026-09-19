@@ -5,6 +5,7 @@ import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
 import com.holonplatform.multitenant.billing.Invoice;
 import com.holonplatform.multitenant.billing.InvoiceProperties;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
@@ -25,6 +26,9 @@ public class InvoiceDatastoreHelper {
     private final BeanDatastoreHelper<Invoice> helper;
 
     public InvoiceDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters (e.g. Invoice#isPaid()) never leak into generated HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, Invoice.class);
     }
 

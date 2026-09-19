@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.whatsapp.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.whatsapp.WhatsAppMessage;
 import com.holonplatform.multitenant.whatsapp.WhatsAppMessageProperties;
 
@@ -28,6 +29,10 @@ public class WhatsAppMessageDatastoreHelper {
     private final BeanDatastoreHelper<WhatsAppMessage> helper;
 
     public WhatsAppMessageDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters (e.g. WhatsAppMessage#isDelivered()) and synthetic Map "empty"
+        // sub-properties never leak into generated HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, WhatsAppMessage.class);
     }
 

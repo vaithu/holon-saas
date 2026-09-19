@@ -81,6 +81,17 @@
             <artifactId>spring-context</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Backs CachingTenantDetailsLoader's default Cache implementation (CaffeineCache),
+             wrapping Spring's org.springframework.cache.Cache abstraction instead of a bespoke
+             TTL cache. Not optional: this is the default (no-args) caching path. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>

@@ -3,6 +3,7 @@
 /tenant-admin/target/
 /tenant-audit/target/
 /tenant-billing/target/
+/tenant-cache-redis/target/
 /tenant-core/target/
 /tenant-data/target/
 /tenant-invitations/target/

@@ -30,7 +30,9 @@ import java.util.Optional;
  *       tenant resolution and calls the next filter in the chain.</li>
  *   <li>{@link TenantResolver} extracts a raw tenant ID from the request.</li>
  *   <li>If no ID is found and {@link #required} is {@code true}, the filter sends
- *       HTTP {@code 400 Bad Request}.</li>
+ *       HTTP {@code 400 Bad Request} — unless {@code deferMissingTenantToChain} is set,
+ *       in which case the request proceeds down the chain for a downstream layer
+ *       (e.g. Spring Security) to handle.</li>
  *   <li>{@link TenantDetailsLoader} loads the full {@link TenantDetails}.</li>
  *   <li>If the tenant is not {@link TenantStatus#ACTIVE} and {@code required} is
  *       {@code true}, the filter sends HTTP {@code 403 Forbidden}.</li>
@@ -53,6 +55,13 @@ public class TenantContextFilter extends OncePerRequestFilter {
 
 	/** Whether a missing or inactive tenant causes the request to be rejected. */
 	private boolean required = true;
+
+	/**
+	 * When {@link #required} is {@code true} and no tenant identifier can be resolved, whether the
+	 * request proceeds down the filter chain (so a downstream layer such as Spring Security can
+	 * redirect to login) instead of being rejected with HTTP {@code 400}. Default: {@code false}.
+	 */
+	private boolean deferMissingTenantToChain = false;
 
 	/** Ant-style path patterns that bypass tenant resolution (actuator, public pages, etc.). */
 	private List<String> ignoredPaths = List.of("/actuator/**", "/public/**", "/error");
@@ -97,6 +106,20 @@ public class TenantContextFilter extends OncePerRequestFilter {
 	}
 
 	/**
+	 * Controls what happens when {@link #setRequired(boolean) required} is {@code true} but no
+	 * tenant identifier can be resolved from the request: {@code false} (the default) rejects with
+	 * HTTP {@code 400}; {@code true} lets the request proceed down the filter chain so a downstream
+	 * layer (typically Spring Security) can handle it — for example by redirecting an
+	 * unauthenticated browser to the login page.
+	 *
+	 * <p>Applies only to the "no tenant identifier at all" case; a request carrying an unknown or
+	 * inactive tenant identifier still yields {@code 404}/{@code 403}.
+	 */
+	public void setDeferMissingTenantToChain(boolean deferMissingTenantToChain) {
+		this.deferMissingTenantToChain = deferMissingTenantToChain;
+	}
+
+	/**
 	 * Sets Ant-style path patterns that bypass tenant resolution.
 	 * Patterns are compiled immediately so that each request pays only a
 	 * pre-compiled {@link PathPattern#matches} cost, not a regex-compilation cost.
@@ -135,14 +158,18 @@ public class TenantContextFilter extends OncePerRequestFilter {
 			Optional<String> tenantIdOpt = tenantResolver.resolveTenantId(request);
 
 			if (tenantIdOpt.isEmpty()) {
-				if (required) {
+				if (required && !deferMissingTenantToChain) {
 					log.warn("Tenant resolution failed for request '{}' — no tenant identifier found",
 							request.getRequestURI());
 					response.sendError(HttpServletResponse.SC_BAD_REQUEST,
 							"Tenant identifier could not be resolved from the request.");
 					return;
 				}
-				// Tenant not required — proceed without context
+				if (required) {
+					log.debug("No tenant identifier for request '{}' — deferring to the filter chain",
+							request.getRequestURI());
+				}
+				// Tenant not required, or deferred to the chain — proceed without context
 				filterChain.doFilter(request, response);
 				return;
 			}

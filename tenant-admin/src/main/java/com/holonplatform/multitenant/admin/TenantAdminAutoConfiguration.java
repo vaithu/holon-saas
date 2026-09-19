@@ -1,5 +1,6 @@
 package com.holonplatform.multitenant.admin;
 
+import com.holonplatform.multitenant.TenantDetailsLoader;
 import com.holonplatform.multitenant.TenantDetailsRepository;
 import com.holonplatform.multitenant.TenantDetailsRepositoryFactory;
 import com.holonplatform.multitenant.admin.internal.DatabaseTenantAdminService;
@@ -13,6 +14,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
+
+import java.util.Optional;
 
 /**
  * Spring Boot auto-configuration for the tenant-admin module.
@@ -87,8 +90,9 @@ public class TenantAdminAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(TenantAdminService.class)
-    public TenantAdminService tenantAdminService(TenantDetailsDatastoreHelper datastoreHelper) {
-        return new DatabaseTenantAdminService(datastoreHelper);
+    public TenantAdminService tenantAdminService(TenantDetailsDatastoreHelper datastoreHelper,
+            Optional<TenantDetailsLoader> tenantDetailsLoader) {
+        return new DatabaseTenantAdminService(datastoreHelper, tenantDetailsLoader);
     }
 }
 

@@ -41,6 +41,46 @@ public class SessionCachingTenantResolver implements TenantResolver {
 	/** Session attribute name used to cache the last resolved tenant ID. */
 	public static final String SESSION_ATTRIBUTE = SessionCachingTenantResolver.class.getName() + ".TENANT_ID";
 
+	/**
+	 * Seeds the session tenant cache with the supplied tenant identifier.
+	 *
+	 * <p>Plain-route applications (those that never carry the original resolution signal in
+	 * every request — e.g. a Vaadin Flow UI with plain {@code @Route}s and no
+	 * {@code /t/{id}/} path prefix) can call this once the authenticated tenant is known,
+	 * typically right after login, so that later requests whose delegate resolver returns
+	 * empty (Vaadin's UIDL/heartbeat POSTs to the servlet root among them) fall back to this
+	 * cached value.
+	 *
+	 * <p>Prefer this over writing {@link #SESSION_ATTRIBUTE} directly: the attribute name is
+	 * an implementation detail this helper encapsulates.
+	 *
+	 * @param session  the HTTP session to seed; must not be null
+	 * @param tenantId the tenant identifier to cache; must not be null or blank
+	 * @throws NullPointerException     if {@code session} is null
+	 * @throws IllegalArgumentException if {@code tenantId} is null or blank
+	 */
+	public static void cacheTenant(HttpSession session, String tenantId) {
+		Objects.requireNonNull(session, "session must not be null");
+		if (tenantId == null || tenantId.isBlank()) {
+			throw new IllegalArgumentException("tenantId must not be null or blank");
+		}
+		session.setAttribute(SESSION_ATTRIBUTE, tenantId);
+	}
+
+	/**
+	 * Removes any cached tenant identifier from the supplied session.
+	 *
+	 * <p>Call this on logout, so a subsequently reused session does not leak the previous
+	 * user's tenant into requests that cannot otherwise resolve one.
+	 *
+	 * @param session the HTTP session to clear; must not be null
+	 * @throws NullPointerException if {@code session} is null
+	 */
+	public static void clearCachedTenant(HttpSession session) {
+		Objects.requireNonNull(session, "session must not be null");
+		session.removeAttribute(SESSION_ATTRIBUTE);
+	}
+
 	private final TenantResolver delegate;
 
 	/**

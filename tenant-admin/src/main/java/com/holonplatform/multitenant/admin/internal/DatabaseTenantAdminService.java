@@ -1,6 +1,8 @@
 package com.holonplatform.multitenant.admin.internal;
 
+import com.holonplatform.multitenant.CachingTenantDetailsLoader;
 import com.holonplatform.multitenant.TenantDetails;
+import com.holonplatform.multitenant.TenantDetailsLoader;
 import com.holonplatform.multitenant.TenantPlan;
 import com.holonplatform.multitenant.TenantStatus;
 import com.holonplatform.multitenant.admin.service.TenantAdminService;
@@ -26,9 +28,12 @@ import java.util.Optional;
 public class DatabaseTenantAdminService implements TenantAdminService {
 
     private final TenantDetailsDatastoreHelper datastoreHelper;
+    private final Optional<TenantDetailsLoader> tenantDetailsLoader;
 
-    public DatabaseTenantAdminService(TenantDetailsDatastoreHelper datastoreHelper) {
+    public DatabaseTenantAdminService(TenantDetailsDatastoreHelper datastoreHelper,
+            Optional<TenantDetailsLoader> tenantDetailsLoader) {
         this.datastoreHelper = Objects.requireNonNull(datastoreHelper, "datastoreHelper must not be null");
+        this.tenantDetailsLoader = tenantDetailsLoader;
     }
 
     @Override
@@ -54,7 +59,9 @@ public class DatabaseTenantAdminService implements TenantAdminService {
     @Transactional
     public TenantDetails save(TenantDetails tenant) {
         Objects.requireNonNull(tenant, "tenant must not be null");
-        return datastoreHelper.save(tenant);
+        TenantDetails saved = datastoreHelper.save(tenant);
+        invalidateCache(saved.tenantId());
+        return saved;
     }
 
     @Override
@@ -62,6 +69,7 @@ public class DatabaseTenantAdminService implements TenantAdminService {
     public void delete(String tenantId) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         datastoreHelper.delete(tenantId);
+        invalidateCache(tenantId);
     }
 
     @Override
@@ -69,7 +77,9 @@ public class DatabaseTenantAdminService implements TenantAdminService {
     public TenantDetails suspend(String tenantId) {
         TenantDetails existing = require(tenantId);
         TenantDetails suspended = existing.toBuilder().status(TenantStatus.SUSPENDED).build();
-        return datastoreHelper.save(suspended);
+        TenantDetails saved = datastoreHelper.save(suspended);
+        invalidateCache(tenantId);
+        return saved;
     }
 
     @Override
@@ -77,7 +87,9 @@ public class DatabaseTenantAdminService implements TenantAdminService {
     public TenantDetails activate(String tenantId) {
         TenantDetails existing = require(tenantId);
         TenantDetails activated = existing.toBuilder().status(TenantStatus.ACTIVE).build();
-        return datastoreHelper.save(activated);
+        TenantDetails saved = datastoreHelper.save(activated);
+        invalidateCache(tenantId);
+        return saved;
     }
 
     @Override
@@ -114,6 +126,17 @@ public class DatabaseTenantAdminService implements TenantAdminService {
     private TenantDetails require(String tenantId) {
         return findById(tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant not found: " + tenantId));
+    }
+
+    /**
+     * Evicts {@code tenantId} from {@link CachingTenantDetailsLoader}'s cache, if the active
+     * {@link TenantDetailsLoader} bean is one — so this write is visible on the very next request
+     * instead of only after the cache TTL elapses.
+     */
+    private void invalidateCache(String tenantId) {
+        tenantDetailsLoader.filter(CachingTenantDetailsLoader.class::isInstance)
+                .map(CachingTenantDetailsLoader.class::cast)
+                .ifPresent(cache -> cache.invalidate(tenantId));
     }
 
     private static List<TenantDetails> sortedByNameOrTenantId(List<TenantDetails> tenants) {

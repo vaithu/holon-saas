@@ -5,6 +5,7 @@ import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
 import com.holonplatform.multitenant.billing.Subscription;
 import com.holonplatform.multitenant.billing.SubscriptionProperties;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
@@ -25,6 +26,9 @@ public class SubscriptionDatastoreHelper {
     private final BeanDatastoreHelper<Subscription> helper;
 
     public SubscriptionDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters (e.g. Subscription#isTrialing()/isAccessible()) never leak into HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, Subscription.class);
     }
 

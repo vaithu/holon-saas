@@ -65,6 +65,24 @@ public class TenantProperties {
 	 */
 	private List<String> ignoredPaths = new ArrayList<>(List.of("/actuator/**", "/public/**", "/error"));
 
+	/**
+	 * When {@link #required} is {@code true} and no tenant identifier can be resolved from a
+	 * request, controls whether {@link com.holonplatform.multitenant.filter.TenantContextFilter}
+	 * rejects the request with HTTP {@code 400 Bad Request} (the default) or instead lets it
+	 * proceed down the filter chain, so a downstream layer — typically Spring Security — can
+	 * handle it, for example by redirecting an unauthenticated browser to the login page.
+	 *
+	 * <p>This applies <strong>only</strong> to the "no tenant identifier at all" case. A request
+	 * that <em>did</em> carry a tenant identifier which turns out to be unknown or inactive still
+	 * yields {@code 404}/{@code 403} respectively, since deferring an invalid tenant to security
+	 * would mask a genuine error.
+	 *
+	 * <p>Enabling this is the recommended setting for a single-page UI (e.g. Vaadin Flow) served
+	 * from plain routes behind a login page: the home and login routes then redirect to sign-in
+	 * instead of returning a bare {@code 400}. Default: {@code false}.
+	 */
+	private boolean deferMissingTenantToChain = false;
+
 	/** Order of the {@code FilterRegistrationBean}. Default: {@code -100} (very early). */
 	private int filterOrder = -100;
 
@@ -82,6 +100,27 @@ public class TenantProperties {
 	 * any strategy.
 	 */
 	private Boolean sessionCache;
+
+	/**
+	 * Whether {@link com.holonplatform.multitenant.TenantDetailsLoader#load(String)} results should
+	 * be cached in memory via {@link com.holonplatform.multitenant.CachingTenantDetailsLoader},
+	 * instead of re-querying the tenant store on every request.
+	 *
+	 * <p>Without this, {@code TenantContextFilter} reloads the full {@code TenantDetails} from the
+	 * database on <strong>every</strong> non-ignored request — including every Vaadin Flow
+	 * UIDL/heartbeat round-trip a single click triggers, since those target the same URL as the
+	 * visible route. Default: {@code true}.
+	 */
+	private boolean detailsCacheEnabled = true;
+
+	/**
+	 * Time-to-live, in milliseconds, for entries cached by {@link
+	 * com.holonplatform.multitenant.CachingTenantDetailsLoader} when {@link #detailsCacheEnabled} is
+	 * {@code true}. Lower values reduce staleness of administrative changes (suspend, plan change,
+	 * ...) that are not explicitly invalidated; higher values reduce database load further.
+	 * Default: {@code 5000} (5 seconds).
+	 */
+	private long detailsCacheTtlMs = 5000L;
 
 	// -------------------------------------------------------------------------
 	// Getters / setters
@@ -135,6 +174,14 @@ public class TenantProperties {
 		this.ignoredPaths = ignoredPaths;
 	}
 
+	public boolean isDeferMissingTenantToChain() {
+		return deferMissingTenantToChain;
+	}
+
+	public void setDeferMissingTenantToChain(boolean deferMissingTenantToChain) {
+		this.deferMissingTenantToChain = deferMissingTenantToChain;
+	}
+
 	public int getFilterOrder() {
 		return filterOrder;
 	}
@@ -149,6 +196,22 @@ public class TenantProperties {
 
 	public void setSessionCache(Boolean sessionCache) {
 		this.sessionCache = sessionCache;
+	}
+
+	public boolean isDetailsCacheEnabled() {
+		return detailsCacheEnabled;
+	}
+
+	public void setDetailsCacheEnabled(boolean detailsCacheEnabled) {
+		this.detailsCacheEnabled = detailsCacheEnabled;
+	}
+
+	public long getDetailsCacheTtlMs() {
+		return detailsCacheTtlMs;
+	}
+
+	public void setDetailsCacheTtlMs(long detailsCacheTtlMs) {
+		this.detailsCacheTtlMs = detailsCacheTtlMs;
 	}
 
 	// -------------------------------------------------------------------------

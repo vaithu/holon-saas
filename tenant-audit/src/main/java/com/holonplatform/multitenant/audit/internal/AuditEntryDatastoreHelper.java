@@ -5,6 +5,7 @@ import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
 import com.holonplatform.multitenant.audit.AuditEntry;
 import com.holonplatform.multitenant.audit.AuditEntryProperties;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,9 @@ public class AuditEntryDatastoreHelper {
     private final BeanDatastoreHelper<AuditEntry> helper;
 
     public AuditEntryDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters / synthetic Map "empty" sub-properties never leak into HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, AuditEntry.class);
     }
 

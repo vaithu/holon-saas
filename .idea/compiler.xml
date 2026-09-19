@@ -6,22 +6,38 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="holon-vaadin-flow-tenant-audit" />
-        <module name="holon-starter-vaadin-flow-saas" />
         <module name="holon-vaadin-flow-tenant-limits" />
-        <module name="holon-vaadin-flow-tenant-admin" />
-        <module name="holon-vaadin-flow-tenant-settings" />
+        <module name="holon-multi-tenant-billing" />
+        <module name="holon-multi-tenant-whatsapp" />
+        <module name="holon-multi-tenant-quotas" />
         <module name="holon-vaadin-flow-tenant-whatsapp" />
         <module name="holon-vaadin-flow-tenant-users" />
+        <module name="holon-multi-tenant-limits" />
+        <module name="holon-multi-tenant-users" />
         <module name="holon-vaadin-flow-tenant-quotas" />
         <module name="holon-vaadin-flow-tenant-billing" />
-        <module name="holon-vaadin-flow-tenant-permissions" />
-        <module name="holon-vaadin-flow-tenant-core" />
+        <module name="holon-multi-tenant-invitations" />
         <module name="holon-vaadin-flow-tenant-onboarding" />
-        <module name="holon-vaadin-flow-tenant-data" />
-        <module name="holon-vaadin-flow-tenant-security" />
+        <module name="holon-starter-multi-tenancy" />
+        <module name="holon-multi-tenant-security" />
         <module name="holon-vaadin-flow-tenant-invitations" />
         <module name="holon-multi-tenant-signup" />
+        <module name="holon-vaadin-flow-tenant-audit" />
+        <module name="holon-multi-tenant-audit" />
+        <module name="holon-starter-vaadin-flow-saas" />
+        <module name="holon-multi-tenant-onboarding" />
+        <module name="holon-multi-tenant-settings" />
+        <module name="holon-multi-tenant-data" />
+        <module name="holon-vaadin-flow-tenant-admin" />
+        <module name="holon-multi-tenant-admin" />
+        <module name="holon-vaadin-flow-tenant-settings" />
+        <module name="holon-multi-tenant-cache-redis" />
+        <module name="holon-vaadin-flow-tenant-permissions" />
+        <module name="holon-vaadin-flow-tenant-core" />
+        <module name="holon-multi-tenant-core" />
+        <module name="holon-multi-tenant-permissions" />
+        <module name="holon-vaadin-flow-tenant-data" />
+        <module name="holon-vaadin-flow-tenant-security" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
@@ -32,6 +48,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="holon-multi-tenant-audit" options="-parameters" />
       <module name="holon-vaadin-flow-tenant-audit" options="-parameters" />
     </option>
   </component>

@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.users.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.users.TenantUser;
 import com.holonplatform.multitenant.users.TenantUserProperties;
 
@@ -25,6 +26,12 @@ public class TenantUserDatastoreHelper {
     private final BeanDatastoreHelper<TenantUser> helper;
 
     public TenantUserDatastoreHelper(Datastore datastore) {
+        // Must run BEFORE BeanDatastoreHelper.of introspects TenantUser: Holon's
+        // BeanIntrospector caches each class's PropertySet on first use, so if the
+        // computed isActive() getter (property "active") and the synthetic Map
+        // "attributes.empty" sub-property are not excluded here, they leak permanently
+        // into generated HQL (Hibernate: "Could not resolve attribute 'active'").
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, TenantUser.class);
     }
 

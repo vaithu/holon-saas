@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.settings.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.settings.TenantSettingOverride;
 import com.holonplatform.multitenant.settings.TenantSettingOverrideProperties;
 
@@ -25,6 +26,9 @@ public class TenantSettingOverrideDatastoreHelper {
     private final BeanDatastoreHelper<TenantSettingOverride> helper;
 
     public TenantSettingOverrideDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters / synthetic Map "empty" sub-properties never leak into HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, TenantSettingOverride.class);
     }
 

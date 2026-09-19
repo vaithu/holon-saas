@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.whatsapp.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.whatsapp.WhatsAppConversation;
 import com.holonplatform.multitenant.whatsapp.WhatsAppConversationProperties;
 
@@ -28,6 +29,9 @@ public class WhatsAppConversationDatastoreHelper {
     private final BeanDatastoreHelper<WhatsAppConversation> helper;
 
     public WhatsAppConversationDatastoreHelper(Datastore datastore) {
+        // Register the exclusion rule before Holon caches this entity's PropertySet, so
+        // computed getters (e.g. WhatsAppConversation#isOpen()/isFreeWindow()) never leak into HQL.
+        TenantCoreBeanPropertyFix.ensureRegistered();
         this.helper = BeanDatastoreHelper.of(datastore, WhatsAppConversation.class);
     }
 

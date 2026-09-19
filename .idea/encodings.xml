@@ -17,6 +17,8 @@
     <file url="file://$PROJECT_DIR$/tenant-audit/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/tenant-billing/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/tenant-billing/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tenant-cache-redis/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tenant-cache-redis/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/tenant-core/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/tenant-core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/tenant-data/src/main/java" charset="UTF-8" />

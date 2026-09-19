@@ -64,6 +64,7 @@
     <modules>
         <module>tenant-core</module>
         <module>tenant-data</module>
+        <module>tenant-cache-redis</module>
         <module>tenant-security</module>
         <module>tenant-onboarding</module>
         <module>tenant-audit</module>
@@ -222,6 +223,11 @@
             <dependency>
                 <groupId>com.holon-platform.multi-tenancy</groupId>
                 <artifactId>holon-multi-tenant-data</artifactId>
+                <version>${holon-multi-tenancy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.holon-platform.multi-tenancy</groupId>
+                <artifactId>holon-multi-tenant-cache-redis</artifactId>
                 <version>${holon-multi-tenancy.version}</version>
             </dependency>
             <dependency>
