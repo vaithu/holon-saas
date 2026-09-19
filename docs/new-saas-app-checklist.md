@@ -423,6 +423,13 @@ Quick summary — before shipping, confirm:
   for `HolonSaasAutoConfiguration`'s WARN; without it, the platform-thread pool (not Virtual
   Threads) caps your real concurrency far below what the caching/service design assumes.
 - [ ] For deployments expecting high concurrency across **multiple app instances** behind a
-  load balancer, be aware the tenant-permission caches and `TokenBucketRateLimiter` are
-  per-instance (in-memory) — a tenant's effective rate limit scales with instance count, and
+  load balancer, be aware the tenant-permission caches are still per-instance (in-memory) —
   each instance independently re-resolves permissions after its own cache TTL expires.
+  `TokenBucketRateLimiter` (the default rate limiter) is also per-instance and now
+  memory-bounded (idle buckets are evicted; capacity/eviction are configurable via
+  `TokenBucketRateLimiter(Duration idleEviction, long maxBuckets)`), but a tenant's effective
+  rate limit still scales with instance count. If you need a single enforced limit shared
+  across all instances, add `tenant-cache-redis` and a `StringRedisTemplate` bean
+  (`spring.data.redis.*` properties) — its `TenantRateLimitRedisAutoConfiguration`
+  auto-activates a Redis-backed `RedisTenantRateLimiter` that all instances share, the same
+  way `tenantDetailsCache` upgrades to Redis when available.
