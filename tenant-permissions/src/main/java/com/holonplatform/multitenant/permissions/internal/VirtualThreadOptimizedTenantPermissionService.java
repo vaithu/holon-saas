@@ -7,10 +7,12 @@ import com.holonplatform.auth.AuthContext;
 import com.holonplatform.multitenant.TenantContext;
 import com.holonplatform.multitenant.permissions.RolePermissions;
 import com.holonplatform.multitenant.permissions.TenantPermissionService;
+import com.holonplatform.multitenant.permissions.view.TenantRoleManagementService;
 import com.holonplatform.multitenant.users.TenantUser;
 import com.holonplatform.multitenant.users.TenantUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,22 @@ import java.util.stream.Collectors;
  *   <li>Can safely handle 100k+ concurrent permission checks</li>
  *   <li>Expected cache hit rate: >99% (same user checked multiple times per request)</li>
  * </ul>
+ *
+ * <h2>Unified key format — bridging the view/action permission matrix</h2>
+ * <p>This module exposes two ways to describe a permission: a flat, opaque key
+ * (e.g. {@code "VIEW_FINANCIALS"}, granted/revoked via {@link #setPermissions}) and a
+ * {@code viewId}/{@code action} pair managed through
+ * {@link com.holonplatform.multitenant.permissions.view.TenantRoleManagementService} (the
+ * per-tenant, per-role permission matrix backing {@code @SecuredView} /
+ * {@code TenantViewAccessChecker} / {@code UIPermissionHelper}). To avoid these two stores
+ * silently diverging, any permission string of the form {@code "viewId:ACTION"} passed to
+ * {@link #currentUserHasPermission(String)} (and therefore to {@code @RequiresPermission})
+ * is delegated to {@code TenantRoleManagementService.currentUserCanPerformAction(viewId,
+ * action)} instead of being looked up in the flat permission store — so
+ * {@code @RequiresPermission("customer-details:CREATE")} enforces exactly the same decision
+ * as the Tenant Owner Permission Matrix UI for that view and action. Plain keys with no
+ * colon (or when no {@code TenantRoleManagementService} bean is available) keep using the
+ * flat permission store as before.</p>
  */
 @Service
 @ConditionalOnBean(TenantPermissionDatastoreHelper.class)
@@ -50,6 +68,7 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
 
     private final TenantPermissionDatastoreHelper datastoreHelper;
     private final TenantUserService tenantUserService;
+    private final ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider;
 
     // ── Virtual Thread-optimized user cache ────────────────────────────────────
 
@@ -73,9 +92,12 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
 
     public VirtualThreadOptimizedTenantPermissionService(
             TenantPermissionDatastoreHelper datastoreHelper,
-            TenantUserService tenantUserService) {
+            TenantUserService tenantUserService,
+            ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider) {
         this.datastoreHelper = Objects.requireNonNull(datastoreHelper, "datastoreHelper must not be null");
         this.tenantUserService = Objects.requireNonNull(tenantUserService, "tenantUserService must not be null");
+        this.roleManagementServiceProvider = Objects.requireNonNull(
+                roleManagementServiceProvider, "roleManagementServiceProvider must not be null");
         log.info("Initialized VirtualThreadOptimizedTenantPermissionService with Caffeine cache");
     }
 
@@ -84,6 +106,22 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
     @Override
     @Transactional(readOnly = true)
     public boolean currentUserHasPermission(String permission) {
+        if (permission != null) {
+            int separator = permission.indexOf(':');
+            if (separator > 0 && separator < permission.length() - 1) {
+                TenantRoleManagementService roleManagementService = roleManagementServiceProvider.getIfAvailable();
+                if (roleManagementService != null) {
+                    String viewId = permission.substring(0, separator);
+                    String action = permission.substring(separator + 1);
+                    log.trace("Delegating view/action permission '{}' to TenantRoleManagementService", permission);
+                    return roleManagementService.currentUserCanPerformAction(viewId, action);
+                }
+                log.warn("Permission '{}' looks like a 'viewId:ACTION' key, but no "
+                        + "TenantRoleManagementService bean is available — falling back to the flat "
+                        + "permission store, where it is very unlikely to have been explicitly granted.",
+                        permission);
+            }
+        }
         return TenantContext.get()
                 .flatMap(tenant -> resolveCurrentTenantUser(tenant.tenantId()))
                 .map(user -> hasPermission(user, permission))

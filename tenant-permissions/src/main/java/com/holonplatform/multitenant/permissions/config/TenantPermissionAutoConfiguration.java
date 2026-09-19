@@ -3,8 +3,17 @@ package com.holonplatform.multitenant.permissions.config;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.multitenant.permissions.TenantPermissionService;
 import com.holonplatform.multitenant.permissions.internal.*;
+import com.holonplatform.multitenant.permissions.view.SystemDefaultPermissionRegistry;
+import com.holonplatform.multitenant.permissions.view.TenantRoleManagementService;
+import com.holonplatform.multitenant.permissions.view.TenantViewAccessChecker;
+import com.holonplatform.multitenant.permissions.view.UIPermissionHelper;
+import com.holonplatform.multitenant.permissions.view.ViewRegistry;
+import com.holonplatform.multitenant.permissions.view.internal.DefaultSystemDefaultPermissionRegistry;
+import com.holonplatform.multitenant.permissions.view.internal.DefaultTenantRoleManagementService;
+import com.holonplatform.multitenant.permissions.view.internal.DefaultViewRegistry;
 import com.holonplatform.multitenant.users.TenantUserService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +36,12 @@ import org.springframework.context.annotation.Import;
  * {@link TenantPermissionService} and the {@code @RequiresPermission} AOP aspect.
  * Any UI layer (Vaadin, React, REST clients, ...) is responsible for calling
  * {@link TenantPermissionService#currentUserHasPermission(String)} (or an
- * equivalent check) to guard its own navigation/routes.</p>
+ * equivalent check) to guard its own navigation/routes. When given a
+ * {@code "viewId:ACTION"}-shaped permission string, the default
+ * {@link VirtualThreadOptimizedTenantPermissionService} delegates to
+ * {@link TenantRoleManagementService} instead of the flat permission store, so
+ * {@code @RequiresPermission} and the view/action permission matrix (managed by tenant
+ * owners through {@code TenantRoleManagementService}) never disagree.</p>
  *
  * <h2>Virtual Thread Optimization (Java 21+)</h2>
  * <p>The database-backed service uses Caffeine cache instead of ThreadLocal for
@@ -72,17 +86,64 @@ public class TenantPermissionAutoConfiguration {
      * application's own base package), so this module must construct it itself.
      */
     @Bean
+    @ConditionalOnBean(Datastore.class)
     @ConditionalOnMissingBean(TenantPermissionDatastoreHelper.class)
     public TenantPermissionDatastoreHelper tenantPermissionDatastoreHelper(Datastore datastore) {
         return new TenantPermissionDatastoreHelper(datastore);
     }
 
     @Bean
+    @ConditionalOnBean(Datastore.class)
+    @ConditionalOnMissingBean(TenantRoleManagementDatastoreHelper.class)
+    public TenantRoleManagementDatastoreHelper tenantRoleManagementDatastoreHelper(Datastore datastore) {
+        return new TenantRoleManagementDatastoreHelper(datastore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ViewRegistry.class)
+    public DefaultViewRegistry viewRegistry() {
+        return new DefaultViewRegistry();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SystemDefaultPermissionRegistry.class)
+    public DefaultSystemDefaultPermissionRegistry systemDefaultPermissionRegistry() {
+        return new DefaultSystemDefaultPermissionRegistry();
+    }
+
+    @Bean
+    @ConditionalOnBean({TenantRoleManagementDatastoreHelper.class, TenantUserService.class})
+    @ConditionalOnMissingBean(TenantRoleManagementService.class)
+    public DefaultTenantRoleManagementService tenantRoleManagementService(
+            TenantRoleManagementDatastoreHelper datastoreHelper,
+            ViewRegistry viewRegistry,
+            SystemDefaultPermissionRegistry defaultPermissionRegistry,
+            TenantUserService tenantUserService) {
+        return new DefaultTenantRoleManagementService(datastoreHelper, viewRegistry, defaultPermissionRegistry, tenantUserService);
+    }
+
+    @Bean
+    @ConditionalOnBean(TenantRoleManagementService.class)
+    @ConditionalOnMissingBean(TenantViewAccessChecker.class)
+    public TenantViewAccessChecker tenantViewAccessChecker(TenantRoleManagementService roleManagementService) {
+        return new TenantViewAccessChecker(roleManagementService);
+    }
+
+    @Bean
+    @ConditionalOnBean(TenantRoleManagementService.class)
+    @ConditionalOnMissingBean(UIPermissionHelper.class)
+    public UIPermissionHelper uiPermissionHelper(TenantRoleManagementService roleManagementService) {
+        return new UIPermissionHelper(roleManagementService);
+    }
+
+    @Bean
+    @ConditionalOnBean({TenantPermissionDatastoreHelper.class, TenantUserService.class})
     @ConditionalOnMissingBean(TenantPermissionService.class)
     public VirtualThreadOptimizedTenantPermissionService virtualThreadOptimizedPermissionService(
             TenantPermissionDatastoreHelper datastoreHelper,
-            TenantUserService tenantUserService) {
-        return new VirtualThreadOptimizedTenantPermissionService(datastoreHelper, tenantUserService);
+            TenantUserService tenantUserService,
+            org.springframework.beans.factory.ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider) {
+        return new VirtualThreadOptimizedTenantPermissionService(datastoreHelper, tenantUserService, roleManagementServiceProvider);
     }
 
     @Bean
