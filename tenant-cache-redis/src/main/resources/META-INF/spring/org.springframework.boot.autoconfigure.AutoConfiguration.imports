@@ -1,1 +1,2 @@
 com.holonplatform.multitenant.cache.redis.TenantCacheRedisAutoConfiguration
+com.holonplatform.multitenant.cache.redis.ratelimit.TenantRateLimitRedisAutoConfiguration

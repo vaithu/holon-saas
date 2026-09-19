@@ -11,11 +11,21 @@
     <artifactId>holon-multi-tenant-cache-redis</artifactId>
     <packaging>jar</packaging>
     <name>${project.groupId}:${project.artifactId}</name>
-    <description>Holon SaaS  Redis-backed tenantDetailsCache Spring Cache bean, shared across every application instance</description>
+    <description>
+        Holon SaaS  Redis-backed infrastructure shared across every application instance:
+        a tenantDetailsCache Spring Cache bean, and (when holon-multi-tenant-limits is also on
+        the classpath) a distributed TenantRateLimiter so per-tenant rate limits are enforced
+        consistently across all instances behind a load balancer, instead of independently per JVM.
+    </description>
     <dependencies>
         <dependency>
             <groupId>com.holon-platform.multi-tenancy</groupId>
             <artifactId>holon-multi-tenant-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.holon-platform.multi-tenancy</groupId>
+            <artifactId>holon-multi-tenant-limits</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

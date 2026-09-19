@@ -1,9 +1,11 @@
 package com.holonplatform.multitenant.limits.internal;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.holonplatform.multitenant.limits.TenantRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,9 +23,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <h2>Thread safety</h2>
- * <p>The outer map is a {@link ConcurrentHashMap}. Each {@code TokenBucket} instance
- * is guarded internally with {@code synchronized} to keep the refill + consume
- * operation atomic without external locking.
+ * <p>The bucket store is a Caffeine {@link com.github.benmanes.caffeine.cache.Cache}.
+ * Each {@code TokenBucket} instance is guarded internally with {@code synchronized}
+ * to keep the refill + consume operation atomic without external locking.
+ *
+ * <h2>Memory bound</h2>
+ * <p>Buckets are evicted after a period of inactivity (default 1 hour) and the total
+ * number of tracked buckets is capped (default 100,000), so long-lived JVMs with many
+ * tenants/keys don't accumulate memory unboundedly. This is safe because an idle-evicted
+ * bucket is semantically equivalent to "not yet seen" — {@link #remaining} already treats
+ * a missing bucket as full capacity, and a bucket idle longer than its window would have
+ * refilled to full capacity anyway.
  *
  * <h2>Plan-awareness</h2>
  * <p>Register custom {@link TenantRateLimiter.LimitDefinition}s per key via
@@ -35,11 +45,39 @@ public class TokenBucketRateLimiter implements TenantRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(TokenBucketRateLimiter.class);
 
+    /** Default idle-eviction period for buckets with no recent activity. */
+    public static final Duration DEFAULT_IDLE_EVICTION = Duration.ofHours(1);
+
+    /** Default hard cap on the total number of tracked buckets across all tenants/keys. */
+    public static final long DEFAULT_MAX_BUCKETS = 100_000;
+
     /** key → limit definition */
     private final ConcurrentHashMap<String, LimitDefinition> definitions = new ConcurrentHashMap<>();
 
-    /** (tenantId + ":" + key) → bucket */
-    private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
+    /** (tenantId + "\0" + key) → bucket, evicted after inactivity and capped in size. */
+    private final com.github.benmanes.caffeine.cache.Cache<String, TokenBucket> buckets;
+
+    /**
+     * Creates a rate limiter with the default idle-eviction period ({@link #DEFAULT_IDLE_EVICTION})
+     * and bucket cap ({@link #DEFAULT_MAX_BUCKETS}).
+     */
+    public TokenBucketRateLimiter() {
+        this(DEFAULT_IDLE_EVICTION, DEFAULT_MAX_BUCKETS);
+    }
+
+    /**
+     * Creates a rate limiter with a custom idle-eviction period and bucket cap.
+     *
+     * @param idleEviction how long a bucket may go untouched before it is evicted; must not be null
+     * @param maxBuckets   hard cap on the total number of tracked buckets across all tenants/keys
+     */
+    public TokenBucketRateLimiter(Duration idleEviction, long maxBuckets) {
+        Objects.requireNonNull(idleEviction, "idleEviction must not be null");
+        this.buckets = Caffeine.newBuilder()
+                .expireAfterAccess(idleEviction)
+                .maximumSize(maxBuckets)
+                .build();
+    }
 
     // ── Configuration ─────────────────────────────────────────────────────────
 
@@ -72,7 +110,7 @@ public class TokenBucketRateLimiter implements TenantRateLimiter {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(key,      "key must not be null");
         LimitDefinition def = requireDefinition(key);
-        TokenBucket bucket = buckets.computeIfAbsent(bucketId(tenantId, key),
+        TokenBucket bucket = buckets.get(bucketId(tenantId, key),
                 id -> new TokenBucket(def.maxRequests(), def.window().toNanos()));
         boolean allowed = bucket.tryConsume();
         if (!allowed) {
@@ -91,7 +129,7 @@ public class TokenBucketRateLimiter implements TenantRateLimiter {
     public void reset(String tenantId, String key) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(key,      "key must not be null");
-        buckets.remove(bucketId(tenantId, key));
+        buckets.invalidate(bucketId(tenantId, key));
         log.debug("Reset bucket for tenant='{}' key='{}'", tenantId, key);
     }
 
@@ -99,12 +137,29 @@ public class TokenBucketRateLimiter implements TenantRateLimiter {
     public long remaining(String tenantId, String key) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(key,      "key must not be null");
-        TokenBucket bucket = buckets.get(bucketId(tenantId, key));
+        TokenBucket bucket = buckets.getIfPresent(bucketId(tenantId, key));
         if (bucket == null) {
             LimitDefinition def = requireDefinition(key);
-            return def.maxRequests(); // untouched bucket is full
+            return def.maxRequests(); // untouched (or evicted-while-idle) bucket is full
         }
         return bucket.getTokens();
+    }
+
+    /**
+     * Returns the current number of tracked buckets across all tenants/keys — useful for
+     * monitoring the memory footprint of this limiter.
+     */
+    public long trackedBucketCount() {
+        return buckets.estimatedSize();
+    }
+
+    /**
+     * Forces pending Caffeine maintenance (size-based and idle-based eviction) to run
+     * synchronously. Caffeine normally performs this lazily during reads/writes, so this is
+     * mainly useful for tests and diagnostics that need deterministic, immediate eviction.
+     */
+    public void cleanUp() {
+        buckets.cleanUp();
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────

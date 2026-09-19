@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.*;
 
 /**
@@ -115,7 +117,50 @@ class TokenBucketRateLimiterTest {
                 .isThrownBy(() -> limiter.getDefinition("unknown.key"));
     }
 
-    // ── Null guards ─��─────────────────────────────────────────────────────────
+    // ── Idle eviction (memory bound) ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("trackedBucketCount reflects active buckets and 0 when none touched")
+    void trackedBucketCount_reflectsActiveBuckets() {
+        assertThat(limiter.trackedBucketCount()).isZero();
+        limiter.tryAcquire("acme", "test.api");
+        limiter.tryAcquire("beta", "test.api");
+        assertThat(limiter.trackedBucketCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("buckets idle past the configured eviction period are evicted, and reappear full")
+    void idleBuckets_areEvictedAndReappearFull() throws InterruptedException {
+        TokenBucketRateLimiter shortLived = new TokenBucketRateLimiter(Duration.ofMillis(50), 100_000);
+        shortLived.registerDefinition("test.api", TenantRateLimiter.LimitDefinition.perMinute(3));
+
+        shortLived.tryAcquire("acme", "test.api");
+        shortLived.tryAcquire("acme", "test.api");
+        assertThat(shortLived.remaining("acme", "test.api")).isEqualTo(1);
+
+        Thread.sleep(200);
+        shortLived.cleanUp();
+        assertThat(shortLived.trackedBucketCount()).isZero();
+
+        // Evicted bucket is indistinguishable from a never-touched one: back to full capacity.
+        assertThat(shortLived.remaining("acme", "test.api")).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("total bucket count is capped at the configured maximum")
+    void bucketCount_isCappedAtConfiguredMaximum() {
+        TokenBucketRateLimiter bounded = new TokenBucketRateLimiter(Duration.ofHours(1), 5);
+        bounded.registerDefinition("test.api", TenantRateLimiter.LimitDefinition.perMinute(3));
+
+        for (int i = 0; i < 50; i++) {
+            bounded.tryAcquire("tenant-" + i, "test.api");
+        }
+        bounded.cleanUp();
+
+        assertThat(bounded.trackedBucketCount()).isLessThanOrEqualTo(5);
+    }
+
+    // ── Null guards ─────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("tryAcquire throws NPE for null tenantId")
