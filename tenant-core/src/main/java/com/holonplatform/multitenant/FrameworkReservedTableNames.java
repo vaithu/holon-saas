@@ -67,6 +67,8 @@ public final class FrameworkReservedTableNames {
 			"whatsapp_conversation",
 			"whatsapp_message",
 			"tenant_permissions",
+			"tenant_permission_overrides",
+			"tenant_custom_roles",
 			"tenant_setting_override",
 			"tenant_plan_setting_default");
 
