@@ -1,6 +1,5 @@
 package com.holonplatform.multitenant.permissions.internal;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.holonplatform.auth.AuthContext;
@@ -14,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.cache.Cache;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,11 +73,15 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
 
     // ── Virtual Thread-optimized user cache ────────────────────────────────────
 
+    /** Name of {@link #userResolutionCache}, for logging/metrics correlation. */
+    public static final String CACHE_NAME = "tenantUserResolution";
+
     /**
-     * Request-scoped user resolution cache optimized for Virtual Threads.
+     * Request-scoped user resolution cache optimized for Virtual Threads, exposed through
+     * Spring's {@link Cache} abstraction instead of a raw Caffeine-typed field.
      *
      * Instead of ThreadLocal (memory accumulation with millions of VTs),
-     * this uses Caffeine with automatic expiry:
+     * this defaults to a Caffeine-backed {@link Cache} with automatic expiry:
      * - Expires after 30 seconds (typical request duration)
      * - Bounded to 10,000 entries (prevents unbounded growth)
      * - Auto-cleanup via internal scheduler
@@ -84,21 +89,40 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
      * Key format: "{tenantId}|{email}"
      * Value: Resolved role information for permission checking
      */
-    private final Cache<String, ResolvedTenantUserRole> userResolutionCache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofSeconds(30))  // Auto-cleanup for VT longevity
-            .maximumSize(10_000)                       // Bounded memory
-            .recordStats()                             // Enable monitoring
-            .build();
+    private final Cache userResolutionCache;
 
     public VirtualThreadOptimizedTenantPermissionService(
             TenantPermissionDatastoreHelper datastoreHelper,
             TenantUserRoleResolver tenantUserRoleResolver,
             ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider) {
+        this(datastoreHelper, tenantUserRoleResolver, roleManagementServiceProvider, defaultUserResolutionCache());
+    }
+
+    /**
+     * Creates a new service backed by the given {@link Cache} instead of the default
+     * per-JVM Caffeine cache — e.g. to share user resolution across instances, or to tune
+     * capacity/TTL differently from the 30s/10,000-entry default.
+     */
+    public VirtualThreadOptimizedTenantPermissionService(
+            TenantPermissionDatastoreHelper datastoreHelper,
+            TenantUserRoleResolver tenantUserRoleResolver,
+            ObjectProvider<TenantRoleManagementService> roleManagementServiceProvider,
+            Cache userResolutionCache) {
         this.datastoreHelper = Objects.requireNonNull(datastoreHelper, "datastoreHelper must not be null");
         this.tenantUserRoleResolver = Objects.requireNonNull(tenantUserRoleResolver, "tenantUserRoleResolver must not be null");
         this.roleManagementServiceProvider = Objects.requireNonNull(
                 roleManagementServiceProvider, "roleManagementServiceProvider must not be null");
-        log.info("Initialized VirtualThreadOptimizedTenantPermissionService with Caffeine cache");
+        this.userResolutionCache = Objects.requireNonNull(userResolutionCache, "userResolutionCache must not be null");
+        log.info("Initialized VirtualThreadOptimizedTenantPermissionService with cache '{}'",
+                userResolutionCache.getName());
+    }
+
+    private static Cache defaultUserResolutionCache() {
+        return new CaffeineCache(CACHE_NAME, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(30))  // Auto-cleanup for VT longevity
+                .maximumSize(10_000)                       // Bounded memory
+                .recordStats()                             // Enable monitoring
+                .build());
     }
 
     // ── Query ────────────────────────────────────────────────────────────────────
@@ -189,10 +213,9 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
                 .flatMap(email -> {
                     String cacheKey = tenantId + "|" + email;
 
-                    // Caffeine handles all caching + cleanup automatically
-                    ResolvedTenantUserRole role = userResolutionCache.get(cacheKey, key ->
-                            tenantUserRoleResolver.resolve(tenantId, email).orElse(null)
-                    );
+                    // Spring's Cache abstraction handles all caching + cleanup automatically
+                    ResolvedTenantUserRole role = userResolutionCache.get(cacheKey,
+                            () -> tenantUserRoleResolver.resolve(tenantId, email).orElse(null));
 
                     return Optional.ofNullable(role);
                 });
@@ -215,13 +238,19 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
     // ── Monitoring & Metrics ─────────────────────────────────────────────────────
 
     /**
-     * Returns cache statistics for monitoring.
-     * Useful for tracking Virtual Thread cache performance.
+     * Returns cache statistics for monitoring, when {@link #userResolutionCache} is
+     * Caffeine-backed (the default). Returns {@link CacheStats#empty()} for any other
+     * {@link Cache} implementation (e.g. a shared, non-Caffeine cache supplied via the
+     * 4-arg constructor), since Spring's {@link Cache} abstraction itself exposes no
+     * statistics API.
      *
+     * Useful for tracking Virtual Thread cache performance.
      * Example: If hit rate < 80%, may need to increase cache size
      */
     public CacheStats getCacheStats() {
-        return userResolutionCache.stats();
+        return nativeCaffeineCache()
+                .map(com.github.benmanes.caffeine.cache.Cache::stats)
+                .orElseGet(CacheStats::empty);
     }
 
     /**
@@ -240,8 +269,21 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
      * With Caffeine, this is optional since entries auto-expire.
      */
     public void clearCache() {
-        userResolutionCache.invalidateAll();
+        userResolutionCache.clear();
         log.debug("User resolution cache cleared");
+    }
+
+    /**
+     * Unwraps {@link #userResolutionCache} to the underlying Caffeine
+     * {@link com.github.benmanes.caffeine.cache.Cache}, when it is a {@link CaffeineCache}
+     * (true for the default cache, and for any Caffeine-backed {@link Cache} passed to the
+     * 4-arg constructor). Empty for any other {@link Cache} implementation.
+     */
+    private Optional<com.github.benmanes.caffeine.cache.Cache<Object, Object>> nativeCaffeineCache() {
+        if (userResolutionCache instanceof CaffeineCache caffeineCache) {
+            return Optional.of(caffeineCache.getNativeCache());
+        }
+        return Optional.empty();
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -305,11 +347,23 @@ public class VirtualThreadOptimizedTenantPermissionService implements TenantPerm
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         datastoreHelper.deleteByTenantId(tenantId);
 
-        // Invalidate any cached users for this tenant
-        userResolutionCache.asMap().keySet().stream()
-                .filter(key -> key.startsWith(tenantId + "|"))
-                .collect(Collectors.toList())
-                .forEach(userResolutionCache::invalidate);
+        // Invalidate any cached users for this tenant. Spring's Cache abstraction exposes no
+        // key-enumeration API, so this only precisely evicts per-tenant entries when the cache
+        // is Caffeine-backed (the default); for any other Cache implementation, fall back to a
+        // full clear — a safe superset (a spurious cache miss for another tenant, never stale data).
+        String prefix = tenantId + "|";
+        boolean evictedPrecisely = nativeCaffeineCache()
+                .map(native_ -> {
+                    native_.asMap().keySet().stream()
+                            .filter(key -> key instanceof String s && s.startsWith(prefix))
+                            .collect(Collectors.toList())
+                            .forEach(native_::invalidate);
+                    return true;
+                })
+                .orElse(false);
+        if (!evictedPrecisely) {
+            userResolutionCache.clear();
+        }
 
         log.info("Cleared all permissions for tenant '{}'", tenantId);
     }

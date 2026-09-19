@@ -1,6 +1,5 @@
 package com.holonplatform.multitenant.permissions.view.internal;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.holonplatform.multitenant.TenantContext;
 import com.holonplatform.multitenant.TenantUserRoleResolver;
@@ -10,13 +9,14 @@ import com.holonplatform.multitenant.permissions.internal.TenantRoleManagementDa
 import com.holonplatform.multitenant.permissions.view.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -32,24 +32,48 @@ public class DefaultTenantRoleManagementService implements TenantRoleManagementS
     private final SystemDefaultPermissionRegistry defaultPermissionRegistry;
     private final TenantUserRoleResolver tenantUserRoleResolver;
 
+    /** Name of {@link #permissionEvaluationCache}, for logging/metrics correlation. */
+    public static final String CACHE_NAME = "tenantPermissionEvaluation";
+
     /**
-     * Cache for resolved permissions to optimize Virtual Thread execution.
+     * Cache for resolved permissions to optimize Virtual Thread execution, exposed through
+     * Spring's {@link Cache} abstraction instead of a raw Caffeine-typed field.
      * Key: "{tenantId}:{roleName}:{viewId}:{action}" -> Boolean
      */
-    private final Cache<String, Boolean> permissionEvaluationCache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMinutes(5))
-            .maximumSize(50_000)
-            .build();
+    private final Cache permissionEvaluationCache;
 
     public DefaultTenantRoleManagementService(
             TenantRoleManagementDatastoreHelper datastoreHelper,
             ViewRegistry viewRegistry,
             SystemDefaultPermissionRegistry defaultPermissionRegistry,
             TenantUserRoleResolver tenantUserRoleResolver) {
+        this(datastoreHelper, viewRegistry, defaultPermissionRegistry, tenantUserRoleResolver,
+                defaultPermissionEvaluationCache());
+    }
+
+    /**
+     * Creates a new service backed by the given {@link Cache} instead of the default per-JVM
+     * Caffeine cache — e.g. to share permission evaluations across instances, or to tune
+     * capacity/TTL differently from the 5-minute/50,000-entry default.
+     */
+    public DefaultTenantRoleManagementService(
+            TenantRoleManagementDatastoreHelper datastoreHelper,
+            ViewRegistry viewRegistry,
+            SystemDefaultPermissionRegistry defaultPermissionRegistry,
+            TenantUserRoleResolver tenantUserRoleResolver,
+            Cache permissionEvaluationCache) {
         this.datastoreHelper = Objects.requireNonNull(datastoreHelper, "datastoreHelper must not be null");
         this.viewRegistry = Objects.requireNonNull(viewRegistry, "viewRegistry must not be null");
         this.defaultPermissionRegistry = Objects.requireNonNull(defaultPermissionRegistry, "defaultPermissionRegistry must not be null");
         this.tenantUserRoleResolver = Objects.requireNonNull(tenantUserRoleResolver, "tenantUserRoleResolver must not be null");
+        this.permissionEvaluationCache = Objects.requireNonNull(permissionEvaluationCache, "permissionEvaluationCache must not be null");
+    }
+
+    private static Cache defaultPermissionEvaluationCache() {
+        return new CaffeineCache(CACHE_NAME, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(5))
+                .maximumSize(50_000)
+                .build());
     }
 
     @Override
@@ -231,7 +255,9 @@ public class DefaultTenantRoleManagementService implements TenantRoleManagementS
         String normalizedAction = action.toUpperCase(Locale.ROOT).trim();
         String cacheKey = tenantId + ":" + normalizedRole + ":" + viewId + ":" + normalizedAction;
 
-        return permissionEvaluationCache.get(cacheKey, k -> evaluatePermission(tenantId, normalizedRole, viewId, normalizedAction));
+        Boolean allowed = permissionEvaluationCache.get(cacheKey,
+                () -> evaluatePermission(tenantId, normalizedRole, viewId, normalizedAction));
+        return Boolean.TRUE.equals(allowed);
     }
 
     private boolean evaluatePermission(String tenantId, String roleName, String viewId, String action) {
@@ -313,7 +339,17 @@ public class DefaultTenantRoleManagementService implements TenantRoleManagementS
     }
 
     private void invalidateCache(String tenantId, String roleName) {
-        permissionEvaluationCache.asMap().keySet().removeIf(k -> k.startsWith(tenantId + ":" + roleName + ":"));
+        // Spring's Cache abstraction exposes no key-enumeration API, so this only precisely
+        // evicts matching entries when the cache is Caffeine-backed (the default); for any
+        // other Cache implementation, fall back to a full clear — a safe superset (a spurious
+        // re-evaluation for another tenant/role, never a stale permission decision).
+        String prefix = tenantId + ":" + roleName + ":";
+        if (permissionEvaluationCache instanceof CaffeineCache caffeineCache) {
+            com.github.benmanes.caffeine.cache.Cache<Object, Object> nativeCache = caffeineCache.getNativeCache();
+            nativeCache.asMap().keySet().removeIf(key -> key instanceof String s && s.startsWith(prefix));
+        } else {
+            permissionEvaluationCache.clear();
+        }
     }
 
     private String formatRoleDisplayName(String roleName) {

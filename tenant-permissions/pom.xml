@@ -38,6 +38,12 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
+        <!-- Wraps the Caffeine cache in Spring's org.springframework.cache.Cache abstraction
+             (CaffeineCache) instead of exposing a raw Caffeine-typed field. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context-support</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
