@@ -422,6 +422,14 @@ Quick summary — before shipping, confirm:
 - [ ] `spring.threads.virtual.enabled=true` is set (Java 21+) — check the app log at startup
   for `HolonSaasAutoConfiguration`'s WARN; without it, the platform-thread pool (not Virtual
   Threads) caps your real concurrency far below what the caching/service design assumes.
+- [ ] Add `spring-boot-starter-actuator` (or any dependency that brings `micrometer-core`) so
+  per-tenant HikariCP pools self-report `hikaricp.*` metrics (tagged by pool, i.e. by tenant) —
+  otherwise hundreds of dynamically-created pools are a complete observability blind spot, and
+  pool exhaustion for one tenant surfaces only as unexplained request timeouts. Also watch
+  `holon.tenant.datasource.pools.active` vs. `.pools.max` — approaching the configured
+  `holon.tenant.data.max-pools` bound means active tenants are being LRU-evicted and
+  re-created, adding pool-creation latency to affected requests (see
+  `BoundedTenantDataSourceRegistry`'s "10k-user sizing guidance").
 - [ ] For deployments expecting high concurrency across **multiple app instances** behind a
   load balancer, be aware the tenant-permission caches are still per-instance (in-memory) —
   each instance independently re-resolves permissions after its own cache TTL expires.

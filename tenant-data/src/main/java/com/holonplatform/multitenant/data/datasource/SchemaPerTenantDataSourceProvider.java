@@ -7,6 +7,8 @@ import com.holonplatform.multitenant.data.TenantDataSourceCreationException;
 import com.holonplatform.multitenant.data.config.TenantDataProperties;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.micrometer.MicrometerMetricsTrackerFactory;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import javax.sql.DataSource;
 import java.util.Objects;
@@ -29,6 +31,15 @@ import java.util.Objects;
  * "the platform/bootstrap connection" (e.g. reading the platform-schema {@code tenant}
  * table, or running startup Flyway migrations). No {@code connectionInitSql} is applied
  * in that case, so the connection lands on the database's default schema.
+ *
+ * <h2>Metrics (optional)</h2>
+ * <p>When {@link #setMeterRegistry(MeterRegistry)} is called (auto-wired by
+ * {@code TenantDataAutoConfiguration} whenever a {@code MeterRegistry} bean is present —
+ * e.g. via {@code spring-boot-starter-actuator}), every pool created afterwards publishes
+ * HikariCP's standard {@code hikaricp.*} metrics per tenant pool. Without this, hundreds of
+ * dynamically-created per-tenant pools would otherwise be a complete observability blind
+ * spot — pool exhaustion or connection starvation for a specific tenant would be invisible
+ * until it surfaced as request timeouts.
  *
  * <h2>Configuration</h2>
  * <pre>{@code
@@ -55,6 +66,15 @@ public class SchemaPerTenantDataSourceProvider implements TenantDataSourceProvid
 	private long idleTimeoutMs = 300_000L;
 	/** Max lifetime (ms) for pool connections. Overridable via {@link #setMaxLifetimeMs(long)}. */
 	private long maxLifetimeMs = 1_800_000L;
+	/**
+	 * Optional Micrometer registry. When set (see {@link #setMeterRegistry(MeterRegistry)}),
+	 * every pool created from this point on is wired with HikariCP's own
+	 * {@link MicrometerMetricsTrackerFactory}, exposing the standard {@code hikaricp.*} metrics
+	 * (active/idle/pending connections, connection acquisition/usage timers) per tenant pool
+	 * (tagged by {@code pool = tenant-<tenantId>}) through whatever {@code MeterRegistry} the
+	 * application already has (Actuator/Prometheus, etc.) — no bespoke metrics code needed.
+	 */
+	private MeterRegistry meterRegistry;
 
 	/**
 	 * Creates a provider that derives pool configuration from the supplied master
@@ -148,6 +168,18 @@ public class SchemaPerTenantDataSourceProvider implements TenantDataSourceProvid
 		this.maxLifetimeMs = maxLifetimeMs;
 	}
 
+	/**
+	 * Sets the {@link MeterRegistry} used to publish per-pool HikariCP metrics.
+	 * When not set (the default), pools are created without Micrometer instrumentation —
+	 * exactly today's behavior.
+	 *
+	 * @param meterRegistry the registry to publish {@code hikaricp.*} metrics to, or
+	 *                      {@code null} to disable metrics again
+	 */
+	public void setMeterRegistry(MeterRegistry meterRegistry) {
+		this.meterRegistry = meterRegistry;
+	}
+
 	@Override
 	public DataSource getDataSource(String tenantId) {
 		try {
@@ -189,6 +221,15 @@ public class SchemaPerTenantDataSourceProvider implements TenantDataSourceProvid
 			// Send a cheap keep-alive query when a connection has been idle for
 			// 60 s to prevent the DB / LB from silently dropping it.
 			config.setKeepaliveTime(60_000);
+
+			// ── Metrics (optional) ───────────────────────────────────────────
+			// If a MeterRegistry is configured, every pool self-reports the standard
+			// hikaricp.* metrics (active/idle/pending connections, acquisition/usage
+			// timers) tagged with this pool's name — this is what makes per-tenant pool
+			// exhaustion/starvation visible instead of a silent capacity ceiling.
+			if (meterRegistry != null) {
+				config.setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory(meterRegistry));
+			}
 
 			return new HikariDataSource(config);
 		} catch (Exception e) {

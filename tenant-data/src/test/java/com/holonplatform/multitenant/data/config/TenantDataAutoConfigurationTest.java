@@ -6,8 +6,11 @@ import com.holonplatform.multitenant.data.SchemaNameResolver;
 import com.holonplatform.multitenant.data.TenantDataSourceRegistry;
 import com.holonplatform.multitenant.data.TenantSchemaStrategy;
 import com.holonplatform.multitenant.data.datasource.BoundedTenantDataSourceRegistry;
+import com.holonplatform.multitenant.data.datasource.SchemaPerTenantDataSourceProvider;
 import com.holonplatform.multitenant.data.datasource.TenantAwareDataSource;
 import com.holonplatform.multitenant.data.migration.TenantSchemaInitializer;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -161,8 +164,95 @@ class TenantDataAutoConfigurationTest {
 	}
 
 	// -------------------------------------------------------------------------
+	// Metrics (optional, only when a MeterRegistry bean is present)
+	// -------------------------------------------------------------------------
+
+	@Test
+	void autoConfig_doesNotRegisterMetricsBinder_withoutMeterRegistry() {
+		contextRunner
+				.withUserConfiguration(ProviderConfig.class)
+				.run(ctx -> assertThat(ctx)
+						.doesNotHaveBean(TenantDataAutoConfiguration.TenantDataSourceMetricsBinder.class));
+	}
+
+	@Test
+	void autoConfig_registersMetricsBinder_whenMeterRegistryPresent() {
+		contextRunner
+				.withUserConfiguration(ProviderConfig.class, MeterRegistryConfig.class)
+				.run(ctx -> assertThat(ctx)
+						.hasSingleBean(TenantDataAutoConfiguration.TenantDataSourceMetricsBinder.class));
+	}
+
+	@Test
+	void autoConfig_registersPoolGauges_whenMeterRegistryPresent() {
+		contextRunner
+				.withUserConfiguration(ProviderConfig.class, MeterRegistryConfig.class)
+				.withPropertyValues("holon.tenant.data.max-pools=42")
+				.run(ctx -> {
+					MeterRegistry meterRegistry = ctx.getBean(MeterRegistry.class);
+					// Force the binder bean to actually be created (Spring beans are lazy by
+					// default only under @Lazy; ApplicationContextRunner eagerly instantiates
+					// all beans on refresh, so simply reading the gauges below is sufficient).
+					assertThat(meterRegistry.find("holon.tenant.datasource.pools.max").gauge())
+							.isNotNull();
+					assertThat(meterRegistry.find("holon.tenant.datasource.pools.max").gauge().value())
+							.isEqualTo(42d);
+					assertThat(meterRegistry.find("holon.tenant.datasource.pools.active").gauge())
+							.isNotNull();
+					assertThat(meterRegistry.find("holon.tenant.datasource.pools.active").gauge().value())
+							.isEqualTo(0d);
+				});
+	}
+
+	@Test
+	void autoConfig_wiresMeterRegistryIntoSchemaPerTenantProvider() {
+		// Uses the REAL default provider (built from DataSourceProperties), not the
+		// test's simplified ProviderConfig, so the concrete SchemaPerTenantDataSourceProvider
+		// type is actually exercised.
+		new ApplicationContextRunner()
+				.withConfiguration(AutoConfigurations.of(TenantDataAutoConfiguration.class))
+				.withUserConfiguration(MeterRegistryConfig.class, DataSourcePropertiesConfig.class)
+				.withPropertyValues("holon.tenant.data.dialect=H2")
+				.run(ctx -> {
+					TenantDataSourceProvider provider = ctx.getBean(TenantDataSourceProvider.class);
+					assertThat(provider)
+							.isInstanceOf(SchemaPerTenantDataSourceProvider.class);
+					// Creating the bootstrap/platform pool (tenantId == null, no schema-switch
+					// SQL applied — see class Javadoc) now publishes hikaricp.* metrics tagged
+					// with this pool's name, proving the MeterRegistry was actually wired in
+					// (not merely present in the context). A per-tenant pool would behave
+					// identically but additionally requires the tenant schema to already exist.
+					provider.getDataSource(null);
+					MeterRegistry meterRegistry = ctx.getBean(MeterRegistry.class);
+					assertThat(meterRegistry.find("hikaricp.connections.active")
+							.tag("pool", "platform-master").gauge())
+							.isNotNull();
+				});
+	}
+
+	// -------------------------------------------------------------------------
 	// Support configurations
 	// -------------------------------------------------------------------------
+
+	@Configuration
+	static class MeterRegistryConfig {
+		@Bean
+		MeterRegistry meterRegistry() {
+			return new SimpleMeterRegistry();
+		}
+	}
+
+	@Configuration
+	static class DataSourcePropertiesConfig {
+		@Bean
+		org.springframework.boot.jdbc.autoconfigure.DataSourceProperties dataSourceProperties() {
+			org.springframework.boot.jdbc.autoconfigure.DataSourceProperties properties =
+					new org.springframework.boot.jdbc.autoconfigure.DataSourceProperties();
+			properties.setUrl("jdbc:h2:mem:metricswiring;DB_CLOSE_DELAY=-1");
+			properties.setDriverClassName("org.h2.Driver");
+			return properties;
+		}
+	}
 
 	@Configuration
 	static class CustomResolverConfig {

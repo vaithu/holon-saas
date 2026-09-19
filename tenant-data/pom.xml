@@ -66,6 +66,15 @@
             <artifactId>HikariCP</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Optional: when present (e.g. via spring-boot-starter-actuator), every per-tenant
+             HikariCP pool is wired with Micrometer metrics (active/idle/pending connections,
+             wait/usage timers) tagged by tenant, using HikariCP's own bundled
+             MicrometerMetricsTrackerFactory — no bespoke metrics code needed. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>

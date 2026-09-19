@@ -9,7 +9,9 @@ import com.holonplatform.multitenant.data.datasource.SchemaPerTenantDataSourcePr
 import com.holonplatform.multitenant.data.datasource.TenantAwareDataSource;
 import com.holonplatform.multitenant.data.migration.TenantSchemaInitializer;
 import com.zaxxer.hikari.HikariDataSource;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.flywaydb.core.Flyway;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -19,6 +21,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 /**
@@ -168,6 +171,49 @@ public class TenantDataAutoConfiguration {
 		initializer.setDialect(properties.getDialect());
 		initializer.setAutoCreateSchema(properties.isAutoCreateSchema());
 		return initializer;
+	}
+
+	// -------------------------------------------------------------------------
+	// Metrics (optional) — isolated in its own nested @Configuration class, gated by
+	// @ConditionalOnClass at the CLASS level, so that io.micrometer.core.instrument.MeterRegistry
+	// is never resolved/loaded (and TenantDataAutoConfiguration itself never fails to load) when
+	// Micrometer isn't on the application's classpath. Activates automatically as soon as a
+	// MeterRegistry bean exists (e.g. via spring-boot-starter-actuator).
+	// -------------------------------------------------------------------------
+
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(MeterRegistry.class)
+	static class TenantDataMetricsConfiguration {
+
+		/**
+		 * Wires the {@link SchemaPerTenantDataSourceProvider} (when that's the active
+		 * {@link TenantDataSourceProvider}) with the application's {@code MeterRegistry} so every
+		 * per-tenant HikariCP pool self-reports {@code hikaricp.*} metrics, and registers gauges
+		 * tracking how close the cached-pool count is to its configured bound — see
+		 * {@link SchemaPerTenantDataSourceProvider}'s and {@link BoundedTenantDataSourceRegistry}'s
+		 * class Javadoc for why both matter at 10k-user scale.
+		 */
+		@Bean
+		@ConditionalOnBean(MeterRegistry.class)
+		public TenantDataSourceMetricsBinder tenantDataSourceMetricsBinder(
+				TenantDataSourceProvider provider,
+				ObjectProvider<TenantDataSourceRegistry> registry,
+				TenantDataProperties properties,
+				MeterRegistry meterRegistry) {
+
+			if (provider instanceof SchemaPerTenantDataSourceProvider schemaPerTenantProvider) {
+				schemaPerTenantProvider.setMeterRegistry(meterRegistry);
+			}
+			registry.ifAvailable(r -> {
+				meterRegistry.gauge("holon.tenant.datasource.pools.active", r, TenantDataSourceRegistry::size);
+				meterRegistry.gauge("holon.tenant.datasource.pools.max", properties.getMaxPools());
+			});
+			return new TenantDataSourceMetricsBinder();
+		}
+	}
+
+	/** No-op marker bean confirming {@link TenantDataMetricsConfiguration} ran; carries no state. */
+	static final class TenantDataSourceMetricsBinder {
 	}
 }
 
