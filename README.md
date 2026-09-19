@@ -17,7 +17,7 @@ REST, or mobile front end on top of it.
 |--------|-------------|-------------|
 | `tenant-core` | `holon-multi-tenant-core` | Core tenant model: `TenantDetails`, `TenantContext`, `TenantPlan`, `TenantFeature`, lifecycle events |
 | `tenant-data` | `holon-multi-tenant-data` | Multi-tenant datasource routing, per-tenant Flyway migrations, schema isolation |
-| `tenant-security` | `holon-multi-tenant-security` | Spring Security integration: `TenantAwareUserDetails`, `TenantIsolationFilter`, AOP guards |
+| `tenant-security` | `holon-multi-tenant-security` | Spring Security integration: `TenantAwareUserDetails`, `TenantIsolationFilter`, tenant-aware `AuthContext` wiring |
 | `tenant-onboarding` | `holon-multi-tenant-onboarding` | Tenant provisioning pipeline with hooks and event publishing |
 | `tenant-audit` | `holon-multi-tenant-audit` | `@AuditAction` AOP support, in-memory and pluggable audit storage |
 | `tenant-settings` | `holon-multi-tenant-settings` | Per-tenant key/value settings with typed access |

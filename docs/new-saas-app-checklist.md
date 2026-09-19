@@ -270,7 +270,7 @@ and the framework's, together):
 | Framework script | Tenant-schema tables it creates |
 |---|---|
 | `V1__tenant_baseline.sql` | (legacy placeholder tables — not entity-backed) |
-| `V1.1__tenant_framework_module_tables.sql` | `tenant_users`, `audit_entries`, `tenant_billing_invoice`, `tenant_billing_subscription`, `user_invitation`, `whatsapp_conversation`, `whatsapp_message`, `tenant_permissions`, `tenant_setting_override`, `tenant_plan_setting_default` |
+| `V1.1__tenant_framework_module_tables.sql` | `tenant_users`, `audit_entries`, `tenant_billing_invoice`, `tenant_billing_subscription`, `user_invitation`, `whatsapp_conversation`, `whatsapp_message`, `tenant_permissions`, `tenant_permission_overrides`, `tenant_custom_roles`, `tenant_setting_override`, `tenant_plan_setting_default` |
 
 The full list above is also available as a compile-time-checkable Java constant —
 `FrameworkReservedTableNames.ALL` (`tenant-core`) — kept mechanically in sync with the actual
