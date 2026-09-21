@@ -93,46 +93,64 @@ class BoundedTenantDataSourceRegistryTest {
 	}
 
 	// -------------------------------------------------------------------------
-	// Insertion-order eviction
+	// Least-recently-used eviction
 	//
-	// The registry uses insertion-order (not LRU) eviction to keep the hot
-	// read path completely lock-free. Re-accessing an existing tenant does NOT
-	// move it to the "recently used" position — the oldest-inserted pool is
-	// always evicted first.
+	// The pool worth keeping is the one still receiving traffic, so eviction is
+	// driven by last use rather than by creation order. Re-accessing a tenant
+	// protects it; going untouched the longest is what gets a pool evicted.
 	// -------------------------------------------------------------------------
 
 	@Test
-	void insertionOrderEviction_evictsOldestInserted_whenCapacityExceeded() {
+	void lruEviction_evictsLeastRecentlyUsed_whenCapacityExceeded() {
 		BoundedTenantDataSourceRegistry registry = new BoundedTenantDataSourceRegistry(id -> mockDs(id), 3);
 
 		registry.getDataSource("a");
 		registry.getDataSource("b");
 		registry.getDataSource("c");
-		// Adding "d" evicts "a" — the first-inserted tenant
+		// Nothing has been re-accessed, so "a" is both the oldest created and the least
+		// recently used — adding "d" evicts it.
 		registry.getDataSource("d");
 
 		assertThat(registry.size()).isEqualTo(3);
-		assertThat(registry.activeTenantIds()).doesNotContain("a");
 		assertThat(registry.activeTenantIds()).containsExactlyInAnyOrder("b", "c", "d");
 	}
 
 	@Test
-	void insertionOrderEviction_reAccessDoesNotChangeEvictionOrder() {
-		// Design note: the hot-path (ConcurrentHashMap.get) is entirely lock-free.
-		// Tracking access order would require acquiring the createLock on every
-		// cache hit — defeating the entire purpose of the two-tier design.
-		// Insertion-order is the deliberate tradeoff.
+	void lruEviction_reAccessProtectsAPoolFromEviction() {
+		// The case that matters in production: the earliest-created tenant is usually the
+		// busiest. Under creation-order eviction it would be evicted and immediately
+		// re-created on the next request, thrashing its pool precisely at capacity.
 		BoundedTenantDataSourceRegistry registry = new BoundedTenantDataSourceRegistry(id -> mockDs(id), 3);
 
-		registry.getDataSource("a"); // inserted first
+		registry.getDataSource("a"); // created first...
 		registry.getDataSource("b");
 		registry.getDataSource("c");
-		registry.getDataSource("a"); // re-access → does NOT promote "a"
-		// "a" was inserted first, so it is still evicted next
+		registry.getDataSource("a"); // ...but still in active use
+
 		registry.getDataSource("d");
 
-		assertThat(registry.activeTenantIds()).doesNotContain("a"); // evicted as oldest insertion
-		assertThat(registry.activeTenantIds()).containsExactlyInAnyOrder("b", "c", "d");
+		// "b" has now gone longest without use, so it is the victim — not "a".
+		assertThat(registry.activeTenantIds()).containsExactlyInAnyOrder("a", "c", "d");
+	}
+
+	@Test
+	void lruEviction_survivesRepeatedPressureOnAHotTenant() {
+		AtomicInteger creations = new AtomicInteger();
+		BoundedTenantDataSourceRegistry registry = new BoundedTenantDataSourceRegistry(id -> {
+			creations.incrementAndGet();
+			return mockDs(id);
+		}, 3);
+
+		registry.getDataSource("hot");
+		// A stream of one-shot tenants keeps the cache permanently at capacity.
+		for (int i = 0; i < 20; i++) {
+			registry.getDataSource("hot");        // keep it the most recently used
+			registry.getDataSource("cold-" + i);
+		}
+
+		// The hot tenant's pool must have been created exactly once, never evicted.
+		assertThat(registry.activeTenantIds()).contains("hot");
+		assertThat(creations.get()).isEqualTo(21); // "hot" + 20 cold tenants
 	}
 
 	// -------------------------------------------------------------------------

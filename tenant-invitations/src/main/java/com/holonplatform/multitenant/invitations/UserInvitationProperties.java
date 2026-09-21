@@ -2,6 +2,7 @@ package com.holonplatform.multitenant.invitations;
 
 import com.holonplatform.core.Validator;
 import com.holonplatform.core.property.PropertySet;
+import com.holonplatform.core.property.PathProperty;
 import com.holonplatform.core.property.StringProperty;
 import com.holonplatform.core.property.TemporalProperty;
 
@@ -86,10 +87,14 @@ public interface UserInvitationProperties {
     /**
      * Current lifecycle state of the invitation (PENDING, ACCEPTED, REVOKED, EXPIRED).
      * Required.
+     *
+     * <p>Typed as the {@link InvitationStatus} enum rather than a String because the mapped
+     * entity field is an enum: filtering this path with a String value is rejected by the JPA
+     * provider ("argument [PENDING] is not assignable to InvitationStatus").
      */
-    StringProperty STATUS = StringProperty.create("status")
+    PathProperty<InvitationStatus> STATUS = PathProperty.create("status", InvitationStatus.class)
         .messageCode("invitation.status")
-        .withValidator(Validator.notBlank());
+        .withValidator(Validator.notNull());
 
     // ── Timestamps ─────────────────────────────────────────────────────────────
 

@@ -47,5 +47,31 @@ public interface TenantRepository {
      * @param tenantId the tenant ID; must not be null
      */
     boolean exists(String tenantId);
+
+    /**
+     * Removes a tenant record entirely.
+     *
+     * <p>Called by the onboarding service when provisioning fails, to undo the {@code
+     * PROVISIONING} row it wrote a moment earlier. That row exists only to stop a concurrent
+     * signup claiming the same identifier while provisioning runs; once provisioning has failed
+     * it describes nothing, and leaving it behind makes {@link #exists(String)} keep reporting
+     * the identifier as taken — permanently blocking a name for a failure the customer neither
+     * caused nor can see.
+     *
+     * <p>Distinct from marking a tenant {@code DELETED}, which records that a real tenant once
+     * existed and whose schema may still hold its data. Only a record that never became a
+     * tenant may be removed this way.
+     *
+     * <p>The default implementation refuses, so that an existing implementation that has not
+     * considered this operation cannot silently destroy data. The onboarding service treats a
+     * refusal as non-fatal and falls back to marking the record {@code DELETED}.
+     *
+     * @param tenantId the tenant ID; must not be null
+     */
+    default void deleteById(String tenantId) {
+        throw new UnsupportedOperationException(
+                "deleteById is not implemented by " + getClass().getName()
+                        + "; onboarding rollback will fall back to marking the tenant DELETED");
+    }
 }
 

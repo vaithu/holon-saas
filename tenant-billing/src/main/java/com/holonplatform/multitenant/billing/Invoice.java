@@ -96,6 +96,36 @@ public class Invoice {
     public Instant paidAt()            { return paidAt; }
     public String externalRef()        { return externalRef; }
 
+    // ── JavaBean accessors ──────────────────────────────────────────────────────
+    //
+    // Required for Holon Datastore persistence — see the equivalent block on Subscription for
+    // why. Holon's BeanIntrospector only recognises getXxx/setXxx, so without these the
+    // introspected PropertySet is empty and every read fails with "Null or empty selection".
+
+    public String getInvoiceId()                       { return invoiceId; }
+    public void setInvoiceId(String invoiceId)         { this.invoiceId = invoiceId; }
+
+    public String getTenantId()                        { return tenantId; }
+    public void setTenantId(String tenantId)           { this.tenantId = tenantId; }
+
+    public BigDecimal getAmountDue()                   { return amountDue; }
+    public void setAmountDue(BigDecimal amountDue)     { this.amountDue = amountDue; }
+
+    public String getCurrency()                        { return currency; }
+    public void setCurrency(String currency)           { this.currency = currency; }
+
+    public InvoiceStatus getStatus()                   { return status; }
+    public void setStatus(InvoiceStatus status)        { this.status = status; }
+
+    public Instant getIssuedAt()                       { return issuedAt; }
+    public void setIssuedAt(Instant issuedAt)          { this.issuedAt = issuedAt; }
+
+    public Instant getPaidAt()                         { return paidAt; }
+    public void setPaidAt(Instant paidAt)              { this.paidAt = paidAt; }
+
+    public String getExternalRef()                     { return externalRef; }
+    public void setExternalRef(String externalRef)     { this.externalRef = externalRef; }
+
     /** Returns {@code true} if this invoice has been paid. */
     public boolean isPaid() {
         return status == InvoiceStatus.PAID;

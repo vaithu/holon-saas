@@ -41,4 +41,10 @@ public class DatabaseTenantRepository implements TenantRepository {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         return datastoreHelper.exists(tenantId);
     }
+
+    @Override
+    public void deleteById(String tenantId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        datastoreHelper.deleteById(tenantId);
+    }
 }

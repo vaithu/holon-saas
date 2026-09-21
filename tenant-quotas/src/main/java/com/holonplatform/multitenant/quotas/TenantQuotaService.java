@@ -100,5 +100,36 @@ public interface TenantQuotaService {
      * Returns all registered quota definitions.
      */
     List<QuotaDefinition> listDefinitions();
+
+    // ── Cache management ──────────────────────────────────────────────────────
+
+    /**
+     * Evicts any cached usage count for {@code (tenantId, key)}, so the next check re-reads it.
+     *
+     * <p>Implementations that cache usage do so on a short timer, which means a resource
+     * created or removed by a path that does not go through {@link annotation.EnforceQuota} —
+     * accepting an invitation, an administrative import, a cascading delete — leaves the
+     * cached count stale and the quota briefly wrong in either direction. Such code should
+     * call this afterwards.
+     *
+     * <p>The default implementation does nothing, which is correct for implementations that
+     * do not cache.
+     *
+     * @param tenantId the tenant whose cached usage should be dropped
+     * @param key      the quota to drop
+     */
+    default void invalidateUsageCache(String tenantId, QuotaKey key) {
+        // No cache to invalidate.
+    }
+
+    /**
+     * Evicts every cached usage count for a tenant — for instance after a bulk import, or when
+     * the tenant is deleted.
+     *
+     * @param tenantId the tenant whose cached usage should be dropped
+     */
+    default void invalidateUsageCacheForTenant(String tenantId) {
+        // No cache to invalidate.
+    }
 }
 

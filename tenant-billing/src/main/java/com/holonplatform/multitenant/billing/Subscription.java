@@ -98,6 +98,43 @@ public class Subscription {
     public Instant cancelledAt()           { return cancelledAt; }
     public String externalRef()            { return externalRef; }
 
+    // ── JavaBean accessors ──────────────────────────────────────────────────────
+    //
+    // Required, not optional. Holon's BeanIntrospector builds an entity's PropertySet from
+    // JavaBean conventions (java.beans.Introspector), which sees getXxx/setXxx and nothing
+    // else — the record-style accessors above are invisible to it. Without these, the
+    // introspected PropertySet for this class contains no persistable property at all, and
+    // every Datastore read fails with "Null or empty selection" while every write persists
+    // nothing. TenantDetails carries the same dual set of accessors for exactly this reason.
+    //
+    // The setters are equally load-bearing: Holon instantiates the entity through its no-arg
+    // constructor and then writes each property, so a getter-only class would read as a set of
+    // read-only properties and never be materialised.
+
+    public String getTenantId()                        { return tenantId; }
+    public void setTenantId(String tenantId)           { this.tenantId = tenantId; }
+
+    public TenantPlan getPlan()                        { return plan; }
+    public void setPlan(TenantPlan plan)               { this.plan = plan; }
+
+    public SubscriptionStatus getStatus()              { return status; }
+    public void setStatus(SubscriptionStatus status)   { this.status = status; }
+
+    public Instant getPeriodStart()                    { return periodStart; }
+    public void setPeriodStart(Instant periodStart)    { this.periodStart = periodStart; }
+
+    public Instant getPeriodEnd()                      { return periodEnd; }
+    public void setPeriodEnd(Instant periodEnd)        { this.periodEnd = periodEnd; }
+
+    public Instant getTrialEnd()                       { return trialEnd; }
+    public void setTrialEnd(Instant trialEnd)          { this.trialEnd = trialEnd; }
+
+    public Instant getCancelledAt()                    { return cancelledAt; }
+    public void setCancelledAt(Instant cancelledAt)    { this.cancelledAt = cancelledAt; }
+
+    public String getExternalRef()                     { return externalRef; }
+    public void setExternalRef(String externalRef)     { this.externalRef = externalRef; }
+
     /** Returns {@code true} if the subscription is in trial. */
     public boolean isTrialing() {
         return status == SubscriptionStatus.TRIALING

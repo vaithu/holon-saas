@@ -1,9 +1,12 @@
 package com.holonplatform.multitenant.billing;
 
 import com.holonplatform.core.Validator;
+import com.holonplatform.core.property.PathProperty;
 import com.holonplatform.core.property.StringProperty;
 import com.holonplatform.core.property.TemporalProperty;
 import com.holonplatform.core.property.PropertySet;
+
+import com.holonplatform.multitenant.TenantPlan;
 
 import java.time.Instant;
 
@@ -53,16 +56,24 @@ public interface SubscriptionProperties {
     /**
      * Current subscription plan (FREE, STARTER, PROFESSIONAL, ENTERPRISE).
      * Required, determines feature access and pricing.
+     *
+     * <p>Declared as a {@code PathProperty<TenantPlan>} rather than a {@code StringProperty}
+     * because the underlying field is an {@code @Enumerated(EnumType.STRING)} enum. Hibernate
+     * validates a query argument against the <em>field's</em> Java type, so binding a String
+     * to it fails at runtime with {@code QueryArgumentException} even though the column is a
+     * varchar.
      */
-    StringProperty PLAN = StringProperty.create("plan")
-        .withValidator(Validator.notBlank());
+    PathProperty<TenantPlan> PLAN = PathProperty.create("plan", TenantPlan.class)
+        .withValidator(Validator.notNull());
 
     /**
      * Current subscription lifecycle status (TRIALING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED).
      * Required, determines whether tenant can access features.
+     *
+     * <p>Typed as the enum for the same reason as {@link #PLAN}.
      */
-    StringProperty STATUS = StringProperty.create("status")
-        .withValidator(Validator.notBlank());
+    PathProperty<SubscriptionStatus> STATUS = PathProperty.create("status", SubscriptionStatus.class)
+        .withValidator(Validator.notNull());
 
     // ── Billing Period ─────────────────────────────────────────────────────────
 

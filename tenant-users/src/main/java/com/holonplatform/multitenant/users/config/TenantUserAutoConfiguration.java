@@ -46,8 +46,8 @@ public class TenantUserAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(TenantUserRoleResolver.class)
-    public TenantUserRoleResolver tenantUserServiceRoleResolver(TenantUserService tenantUserService) {
-        return new TenantUserServiceRoleResolver(tenantUserService);
+    public TenantUserRoleResolver tenantUserServiceRoleResolver(TenantUserDatastoreHelper datastoreHelper) {
+        return new TenantUserServiceRoleResolver(datastoreHelper);
     }
 }
 

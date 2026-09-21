@@ -12,6 +12,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -51,6 +53,7 @@ public class AuditAspect {
     private final ActorResolver      actorResolver;
     private final ExpressionParser   spelParser    = new SpelExpressionParser();
     private final ConcurrentHashMap<String, Expression> exprCache = new ConcurrentHashMap<>();
+    private final ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
 
     public AuditAspect(TenantAuditService auditService, ActorResolver actorResolver) {
         this.auditService  = Objects.requireNonNull(auditService, "auditService must not be null");
@@ -144,8 +147,9 @@ public class AuditAspect {
                 ctx.setVariable("p" + i, args[i]);
             }
 
-            // Expose args by name when AspectJ provides them (requires -parameters or debug info)
-            String[] paramNames = sig.getParameterNames();
+            // Expose args by name. Spring's discoverer reads the names javac records under
+            // -parameters; AspectJ's own signature does not expose them for proxy-based advice.
+            String[] paramNames = parameterNameDiscoverer.getParameterNames(sig.getMethod());
             if (paramNames != null) {
                 for (int i = 0; i < paramNames.length && i < args.length; i++) {
                     ctx.setVariable(paramNames[i], args[i]);

@@ -23,7 +23,11 @@ public class DefaultSystemDefaultPermissionRegistry implements SystemDefaultPerm
     }
 
     private void initStandardDefaults() {
-        // ADMIN has wildcard access across all views and actions
+        // OWNER and ADMIN both have wildcard access across all views and actions. OWNER is
+        // registered explicitly (rather than left to the isActionPermitted short-circuit
+        // alone) so that callers reading the registry directly — e.g. an admin console
+        // rendering the permission matrix — see the owner's effective access too.
+        registerDefault(SystemRole.OWNER, "*", "*");
         registerDefault(SystemRole.ADMIN, "*", "*");
 
         // VIEWER has read-only access across basic dashboard and reporting views

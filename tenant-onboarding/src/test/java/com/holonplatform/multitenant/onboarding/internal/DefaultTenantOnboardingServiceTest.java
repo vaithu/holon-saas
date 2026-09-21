@@ -1,5 +1,6 @@
 package com.holonplatform.multitenant.onboarding.internal;
 
+import com.holonplatform.multitenant.TenantContext;
 import com.holonplatform.multitenant.TenantDetails;
 import com.holonplatform.multitenant.TenantPlan;
 import com.holonplatform.multitenant.TenantStatus;
@@ -10,6 +11,10 @@ import com.holonplatform.multitenant.onboarding.event.TenantOnboardingCompletedE
 import com.holonplatform.multitenant.onboarding.event.TenantOnboardingFailedEvent;
 import com.holonplatform.multitenant.onboarding.exception.TenantAlreadyExistsException;
 import com.holonplatform.multitenant.onboarding.exception.TenantOnboardingException;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -175,8 +180,44 @@ class DefaultTenantOnboardingServiceTest {
     }
 
     @Test
-    @DisplayName("onboard marks tenant DELETED in repository when Flyway fails")
+    @DisplayName("onboard works with another tenant in scope, and leaves that scope untouched")
+    void onboard_runsInPlatformScope_andRestoresCallerScope() {
+        // An admin console signed in to one workspace creating another is an ordinary thing to
+        // do, and the tenant registry it writes is platform-level data. If onboarding inherits
+        // the caller's tenant, the tenant-aware DataSource routes that write into the caller's
+        // own schema — where the table does not exist, so this fails with a "table not found"
+        // that names nothing relevant.
+        TenantDetails caller = TenantDetails.builder("caller-tenant")
+                .plan(TenantPlan.FREE).status(TenantStatus.ACTIVE).build();
+        TenantContext.set(caller);
+        try {
+            // Recorded rather than asserted inside the hook: the activating save happens inside
+            // onboarding's try block, so an assertion error thrown there would be caught and
+            // reported as an onboarding failure instead of as this test failing.
+            List<Boolean> tenantInScopeDuringSaves = new ArrayList<>();
+            repository.setOnSave(saved -> tenantInScopeDuringSaves.add(TenantContext.isSet()));
+
+            service.onboard(TenantOnboardingRequest.builder("scoped-tenant").plan(TenantPlan.FREE).build());
+
+            assertThat(tenantInScopeDuringSaves)
+                    .describedAs("registry writes must not run inside the calling tenant")
+                    .isNotEmpty()
+                    .containsOnly(false);
+
+            // And the caller gets its own scope back, or every later query on that thread
+            // would silently read the platform schema.
+            assertThat(TenantContext.get()).contains(caller);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("onboard falls back to marking tenant DELETED when the repository cannot remove it")
     void onboard_migrationFailure_markedDeleted() {
+        // FakeTenantRepository does not implement deleteById, so the rollback cannot remove the
+        // record and keeps the old tombstone behaviour rather than failing. This is what makes
+        // deleteById safe to add to an existing SPI.
         doThrow(new RuntimeException("DB down")).when(schemaInitializer).migrate("deleted-tenant");
 
         assertThatExceptionOfType(TenantOnboardingException.class).isThrownBy(() ->
@@ -188,6 +229,32 @@ class DefaultTenantOnboardingServiceTest {
                 .get()
                 .extracting(TenantDetails::status)
                 .isEqualTo(TenantStatus.DELETED);
+    }
+
+    @Test
+    @DisplayName("onboard removes the record when the repository can, freeing the identifier to retry")
+    void onboard_migrationFailure_identifierIsReusable() {
+        // The case that matters to a customer: a signup that failed for a transient reason must
+        // not permanently burn the workspace name they chose. A tombstone still satisfies
+        // exists(), so leaving one behind makes every retry fail with "already exists" — which
+        // is what TenantOnboardingFailedEvent's own documentation promises does not happen.
+        DeletingFakeTenantRepository deleting = new DeletingFakeTenantRepository();
+        DefaultTenantOnboardingService svc =
+                new DefaultTenantOnboardingService(deleting, schemaInitializer, eventPublisher);
+
+        doThrow(new RuntimeException("DB down")).when(schemaInitializer).migrate("retryable");
+
+        assertThatExceptionOfType(TenantOnboardingException.class).isThrownBy(() ->
+                svc.onboard(TenantOnboardingRequest.builder("retryable").plan(TenantPlan.FREE).build()));
+
+        assertThat(deleting.exists("retryable"))
+                .describedAs("the identifier must be free again after a failed onboarding")
+                .isFalse();
+
+        // And the proof that "free" means usable: the identical request now goes through.
+        reset(schemaInitializer);
+        assertThat(svc.onboard(TenantOnboardingRequest.builder("retryable").plan(TenantPlan.FREE).build())
+                .tenant().status()).isEqualTo(TenantStatus.ACTIVE);
     }
 
     @Test

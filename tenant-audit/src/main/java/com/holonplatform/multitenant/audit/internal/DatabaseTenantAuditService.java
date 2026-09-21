@@ -8,6 +8,7 @@ import com.holonplatform.multitenant.permissions.annotation.RequiresPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -37,9 +38,30 @@ public class DatabaseTenantAuditService implements TenantAuditService {
 
     // -- Recording ---------------------------------------------------------
 
+    /**
+     * Persists an audit entry in its own, independent transaction.
+     *
+     * <h3>Why {@link Propagation#REQUIRES_NEW}, not the default {@code REQUIRED}</h3>
+     * <p>{@code AuditAspect} calls this from inside the audited business method's own
+     * transaction. With the default {@code REQUIRED} propagation the audit row joins that
+     * transaction, so a later business rollback silently discards the audit record too —
+     * the audit trail vanishes precisely in the cases worth auditing. It is strictly worse
+     * than that for the failure path: {@code AuditAspect} records a failure entry from its
+     * exception handler, by which point the surrounding transaction is already marked
+     * rollback-only, so failure audits were <em>always</em> lost. A suspended, independent
+     * transaction commits the audit record regardless of the business outcome.
+     *
+     * <h3>Why no {@code @RequiresPermission} gate</h3>
+     * <p>This is the framework's internal write path, invoked by {@code AuditAspect} on
+     * behalf of whichever principal happens to be running the audited business method — not
+     * a user-facing admin API. Gating it on {@code AUDIT_WRITE}/{@code ADMIN} meant that any
+     * action by a non-admin actor (i.e. most of what is worth auditing) threw
+     * {@code PermissionDeniedException} inside the aspect, which swallows it with a warning
+     * — silently dropping exactly those audit entries. Read operations below remain gated on
+     * {@code AUDIT_VIEW}/{@code ADMIN}, which is where access control belongs.
+     */
     @Override
-    @Transactional
-    @RequiresPermission({"AUDIT_WRITE", "ADMIN"})
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(AuditEntry entry) {
         Objects.requireNonNull(entry, "entry must not be null");
 
@@ -76,8 +98,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
         Objects.requireNonNull(action, "action must not be null");
         validatePagination(offset, limit);
 
-        String actionStr = action.name();
-        return datastoreHelper.findByTenantIdAndAction(tenantId, actionStr).stream()
+        return datastoreHelper.findByTenantIdAndAction(tenantId, action).stream()
                 .skip(offset)
                 .limit(limit)
                 .toList();
@@ -91,8 +112,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
         Objects.requireNonNull(severity, "severity must not be null");
         validatePagination(offset, limit);
 
-        String severityStr = severity.name();
-        return datastoreHelper.findByTenantIdAndSeverity(tenantId, severityStr).stream()
+        return datastoreHelper.findByTenantIdAndSeverity(tenantId, severity).stream()
                 .skip(offset)
                 .limit(limit)
                 .toList();
@@ -122,7 +142,7 @@ public class DatabaseTenantAuditService implements TenantAuditService {
     public long countBySeverity(String tenantId, AuditSeverity severity) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(severity, "severity must not be null");
-        return datastoreHelper.countByTenantIdAndSeverity(tenantId, severity.name());
+        return datastoreHelper.countByTenantIdAndSeverity(tenantId, severity);
     }
 
     // -- Lifecycle ---------------------------------------------------------------

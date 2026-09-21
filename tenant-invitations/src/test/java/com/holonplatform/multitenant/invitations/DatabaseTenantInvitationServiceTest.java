@@ -59,11 +59,11 @@ class DatabaseTenantInvitationServiceTest {
         });
         when(datastoreHelper.findByToken(anyString())).thenAnswer(inv ->
                 Optional.ofNullable(store.get(inv.getArgument(0, String.class))));
-        when(datastoreHelper.findByTenantIdAndStatus(anyString(), anyString())).thenAnswer(inv -> {
+        when(datastoreHelper.findByTenantIdAndStatus(anyString(), any(InvitationStatus.class))).thenAnswer(inv -> {
             String tenantId = inv.getArgument(0, String.class);
-            String status = inv.getArgument(1, String.class);
+            InvitationStatus status = inv.getArgument(1, InvitationStatus.class);
             List<UserInvitation> result = new ArrayList<>(store.values().stream()
-                    .filter(i -> i.tenantId().equals(tenantId) && i.status().name().equals(status))
+                    .filter(i -> i.tenantId().equals(tenantId) && i.status() == status)
                     .sorted((a, b) -> b.createdAt().compareTo(a.createdAt()))
                     .toList());
             return result;
@@ -101,12 +101,9 @@ class DatabaseTenantInvitationServiceTest {
         });
 
         tenantUserService = mock(TenantUserService.class);
-        when(tenantUserService.invite(anyString(), anyString(), anyString(), any(TenantRole.class)))
+        when(tenantUserService.acceptInvitation(anyString(), anyString(), anyString(), any(TenantRole.class), any()))
                 .thenAnswer(inv -> TenantUser.builder(inv.getArgument(1), inv.getArgument(0), inv.getArgument(2))
                         .role(inv.getArgument(3)).build());
-        when(tenantUserService.activate(anyString(), anyString()))
-                .thenAnswer(inv -> TenantUser.builder(inv.getArgument(1), inv.getArgument(0), "user@example.com")
-                        .build());
 
         eventPublisher = mock(ApplicationEventPublisher.class);
         invitationSender = mock(InvitationSender.class);

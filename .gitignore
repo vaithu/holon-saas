@@ -16,3 +16,13 @@
 /tenant-signup/target/
 /tenant-users/target/
 /tenant-whatsapp/target/
+/saas-demo/target/
+
+# Build and tooling output that should never be committed
+target/
+node_modules/
+*.log
+
+# Vaadin build output, regenerated on every build
+**/src/main/frontend/generated/
+.vaadin/

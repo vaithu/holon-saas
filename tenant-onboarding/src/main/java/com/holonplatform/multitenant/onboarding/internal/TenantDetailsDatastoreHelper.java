@@ -57,5 +57,15 @@ public class TenantDetailsDatastoreHelper {
     public boolean exists(String tenantId) {
         return repository.existsById(tenantId);
     }
+
+    /**
+     * Removes a tenant record entirely. Used only to undo a {@code PROVISIONING} row whose
+     * onboarding then failed — see {@code TenantRepository#deleteById}.
+     *
+     * @param tenantId the tenant ID; must not be null
+     */
+    public void deleteById(String tenantId) {
+        repository.deleteById(tenantId);
+    }
 }
 

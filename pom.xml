@@ -79,6 +79,7 @@
         <module>tenant-quotas</module>
         <module>tenant-signup</module>
         <module>starter-saas</module>
+        <module>saas-demo</module>
         <module>bom</module>
     </modules>
 
@@ -329,6 +330,14 @@
                     <configuration>
                         <release>${java.version}</release>
                         <encoding>${project.build.sourceEncoding}</encoding>
+                        <!--
+                          Required by every annotation in this framework that takes a SpEL
+                          expression over method arguments - @Audited's resourceIdExpression,
+                          for instance. Without it javac discards parameter names, and since
+                          Spring 6.1 removed LocalVariableTableParameterNameDiscoverer there is
+                          no fallback: expressions like "#email" silently resolve to null.
+                        -->
+                        <parameters>true</parameters>
                     </configuration>
                 </plugin>
                 <plugin>

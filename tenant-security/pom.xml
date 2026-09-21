@@ -100,6 +100,17 @@
             <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            tenant-core declares spring-boot-persistence as <optional>, so it does not reach this
+            module transitively. TenantCoreAutoConfiguration still references EntityScanPackages
+            from that artifact, so any test here that imports tenant-core's auto-configuration
+            fails with NoClassDefFoundError without this test-scoped dependency.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-persistence</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

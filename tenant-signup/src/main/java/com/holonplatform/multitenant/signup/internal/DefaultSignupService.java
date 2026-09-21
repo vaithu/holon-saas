@@ -14,9 +14,13 @@ import com.holonplatform.multitenant.signup.SignupException;
 import com.holonplatform.multitenant.signup.SignupRequest;
 import com.holonplatform.multitenant.signup.SignupService;
 import com.holonplatform.multitenant.users.TenantRole;
+import com.holonplatform.multitenant.users.TenantUserException;
 import com.holonplatform.multitenant.users.TenantUserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -61,11 +65,15 @@ import java.util.regex.Pattern;
  * previous attempt left off — skipping owner-user creation entirely if a user with the
  * requested email already exists for that tenant (avoiding a duplicate owner), then always
  * (re)attempting credential storage. This is a best-effort compensating measure for the
- * lack of cross-schema atomicity above, not a full replacement for it — a tenant stuck in a
- * non-{@code ACTIVE} status (e.g. onboarding itself failed and left it {@code DELETED})
- * still requires manual/ops intervention.
+ * lack of cross-schema atomicity above, not a full replacement for it. A signup whose
+ * <em>onboarding</em> failed is a different case and needs no intervention: onboarding removes
+ * the record it wrote, so the identifier is free and calling {@link #signup(SignupRequest)}
+ * again simply starts over. Only a repository that cannot remove records leaves the
+ * {@code DELETED} tombstone that does require manual cleanup.
  */
 public class DefaultSignupService implements SignupService {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultSignupService.class);
 
     private static final Pattern TENANT_ID_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$");
 
@@ -120,13 +128,25 @@ public class DefaultSignupService implements SignupService {
         // handles the set/finally-clear boilerplate (and correctly restores rather than blindly
         // clears, in case this ever runs nested inside an already-bound context).
         TenantContextTemplate.run(tenant, () -> {
-            // findByEmail first, not an unconditional invite(): this is what makes resuming a
-            // partially-failed signup (see class Javadoc) safe to retry without creating a
-            // second/duplicate owner user for the same tenant+email.
-            if (tenantUserService.findByEmail(tenantId, email).isEmpty()) {
-                String userId = UUID.randomUUID().toString();
-                tenantUserService.invite(tenantId, userId, email, TenantRole.OWNER);
-                tenantUserService.activate(tenantId, userId);
+            // Signup is, by definition, anonymous: there is no authenticated principal, and the
+            // tenant has no members yet who could authorise anything. The regular
+            // invite()/activate() pair is @RequiresPermission-gated, so calling it here would
+            // fail with PermissionDenied for every self-service signup whenever the permissions
+            // module is on the classpath. acceptInvitation(...) is the framework's deliberately
+            // ungated bootstrap entry point for exactly this situation — "the caller has already
+            // established authority out of band" — and it creates the user ACTIVE in one step.
+            //
+            // The userId is derived deterministically from tenant + email rather than being a
+            // random UUID, which is what keeps a retried signup (see class Javadoc) idempotent:
+            // the second attempt hits the "already belongs" guard inside acceptInvitation and is
+            // treated as "the owner already exists", instead of silently creating a duplicate
+            // owner. A permission-gated findByEmail() pre-check cannot be used for that purpose
+            // here, for the same anonymity reason.
+            String userId = ownerUserId(tenantId, email);
+            try {
+                tenantUserService.acceptInvitation(tenantId, userId, email, TenantRole.OWNER, null);
+            } catch (TenantUserException alreadyOwner) {
+                log.debug("Owner '{}' already exists for tenant '{}'; resuming signup", email, tenantId);
             }
         });
 
@@ -158,6 +178,16 @@ public class DefaultSignupService implements SignupService {
                     .orElseThrow(() -> new SignupException(
                             "Workspace '" + tenantId + "' already exists", alreadyExists));
         }
+    }
+
+    /**
+     * Derives the owner's user id deterministically from the workspace and email, so that a
+     * retried signup produces the same id and is therefore recognised as a duplicate rather
+     * than creating a second owner.
+     */
+    private static String ownerUserId(String tenantId, String email) {
+        return UUID.nameUUIDFromBytes(("owner|" + tenantId + "|" + email).getBytes(StandardCharsets.UTF_8))
+                .toString();
     }
 }
 

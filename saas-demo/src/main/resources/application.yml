@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: holon-saas-demo
+  datasource:
+    url: jdbc:h2:mem:saasdemo;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      # Flyway owns all DDL: the platform schema via db/migration, each tenant
+      # schema via the framework's db/tenant-migration scripts.
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate.dialect: org.hibernate.dialect.H2Dialect
+      jakarta.persistence.validation.mode: none
+      hibernate.integration.beanvalidation: false
+  flyway:
+    # The platform schema is migrated explicitly by PlatformDataSourceConfig against
+    # a non-tenant-aware DataSource, so Spring Boot's own Flyway auto-configuration
+    # (which would run against the @Primary tenant-aware DataSource) is switched off.
+    enabled: false
+
+holon:
+  tenant:
+    # No `strategy` here: DemoTenantResolverConfig declares the TenantResolver bean itself, so
+    # all four request strategies (subdomain, header, path prefix, JWT claim) are active at
+    # once and this property would be ignored. A browser supplies none of them, so the tenant
+    # for the UI is still bound from the authenticated principal by tenant-security's
+    # AuthenticatedPrincipalTenantContextFilter.
+    # Sign-up, login and invitation-acceptance are all legitimately tenant-less.
+    required: false
+    # Enabled so F23 has something to demonstrate: with holon-multi-tenant-cache-redis and a
+    # RedisConnectionFactory present, this cache is a shared Redis cache rather than a per-JVM
+    # one, and an eviction on one node is seen by all of them. Safe here only because
+    # PlatformConsoleService evicts the entry whenever it changes a tenant — without that a
+    # suspended workspace would keep working until the TTL expired.
+    details-cache-enabled: true
+    details-cache-ttl-ms: 5000
+    ignored-paths:
+      - /actuator/**
+      - /error
+      - /VAADIN/**
+      - /vaadinServlet/**
+      - /login
+      - /signup
+      - /accept-invite/**
+    data:
+      schema-strategy: SCHEMA_PER_TENANT
+      dialect: H2
+      schema-prefix: "tenant_"
+      auto-create-schema: true
+      migration-locations: classpath:db/tenant-migration
+      # Deliberately tiny so that F24's eviction is observable after a few clicks rather than
+      # after a few thousand tenants. Production deployments leave this at the default (200).
+      max-pools: 3
+    security:
+      isolation-enforced: true
+      principal-fallback-enabled: true
+  saas:
+    invitations:
+      accept-base-url: http://localhost:8080/accept-invite
+
+vaadin:
+  launch-browser: false
+  # The dev-tools overlay (and Copilot inside it) floats above the page and swallows pointer
+  # events, which blocks the end-to-end tests. Nothing in this demo depends on it.
+  devmode:
+    devTools:
+      enabled: false
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.holonplatform.multitenant: INFO
+    com.holonplatform.multitenant.demo: DEBUG

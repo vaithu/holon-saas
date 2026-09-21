@@ -248,7 +248,11 @@ public class DefaultTenantRoleManagementService implements TenantRoleManagementS
         }
 
         String normalizedRole = roleName.toUpperCase(Locale.ROOT).trim();
-        if (SystemRole.ADMIN.equals(normalizedRole)) {
+        // OWNER outranks ADMIN (TenantRole.OWNER = all admin rights plus tenant deletion /
+        // ownership transfer), but the baseline SystemDefaultPermissionRegistry registers no
+        // defaults under "OWNER" — so without this short-circuit an owner would be denied
+        // every view and action unless an override was set manually for each one.
+        if (SystemRole.ADMIN.equals(normalizedRole) || SystemRole.OWNER.equals(normalizedRole)) {
             return true;
         }
 

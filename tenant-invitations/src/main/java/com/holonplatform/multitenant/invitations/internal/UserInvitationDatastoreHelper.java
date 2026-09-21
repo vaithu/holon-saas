@@ -52,7 +52,7 @@ public class UserInvitationDatastoreHelper {
     }
 
     /** Returns all invitations for a tenant in a given status, newest first. */
-    public List<UserInvitation> findByTenantIdAndStatus(String tenantId, String status) {
+    public List<UserInvitation> findByTenantIdAndStatus(String tenantId, InvitationStatus status) {
         return helper.findAll(
                 QueryFilter.eq(UserInvitationProperties.TENANT_ID, tenantId)
                         .and(QueryFilter.eq(UserInvitationProperties.STATUS, status)),
@@ -75,7 +75,7 @@ public class UserInvitationDatastoreHelper {
         String emailLower = email.toLowerCase(Locale.ROOT);
         return helper.findAll(
                 QueryFilter.eq(UserInvitationProperties.TENANT_ID, tenantId)
-                        .and(QueryFilter.eq(UserInvitationProperties.STATUS, InvitationStatus.PENDING.name()))
+                        .and(QueryFilter.eq(UserInvitationProperties.STATUS, InvitationStatus.PENDING))
         ).filter(inv -> inv.getEmail() != null && inv.getEmail().toLowerCase(Locale.ROOT).equals(emailLower))
                 .findFirst();
     }
@@ -83,7 +83,7 @@ public class UserInvitationDatastoreHelper {
     /** Returns all PENDING invitations whose expiry has already passed. */
     public List<UserInvitation> findAllExpiredPending(Instant now) {
         return helper.findAll(
-                QueryFilter.eq(UserInvitationProperties.STATUS, InvitationStatus.PENDING.name())
+                QueryFilter.eq(UserInvitationProperties.STATUS, InvitationStatus.PENDING)
                         .and(QueryFilter.lt(UserInvitationProperties.EXPIRES_AT, now))
         ).toList();
     }

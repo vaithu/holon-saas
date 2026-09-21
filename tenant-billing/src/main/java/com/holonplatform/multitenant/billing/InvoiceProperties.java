@@ -2,6 +2,7 @@ package com.holonplatform.multitenant.billing;
 
 import com.holonplatform.core.Validator;
 import com.holonplatform.core.property.NumericProperty;
+import com.holonplatform.core.property.PathProperty;
 import com.holonplatform.core.property.StringProperty;
 import com.holonplatform.core.property.TemporalProperty;
 import com.holonplatform.core.property.PropertySet;
@@ -78,9 +79,14 @@ public interface InvoiceProperties {
     /**
      * Current payment status of the invoice (OPEN, PAID, PAST_DUE, VOID).
      * Required, determines whether the invoice is settled.
+     *
+     * <p>Declared as a {@code PathProperty<InvoiceStatus>} rather than a {@code StringProperty}
+     * because the underlying field is an {@code @Enumerated(EnumType.STRING)} enum; Hibernate
+     * validates the query argument against the field's Java type, so a String binding is
+     * rejected at runtime.
      */
-    StringProperty STATUS = StringProperty.create("status")
-        .withValidator(Validator.notBlank());
+    PathProperty<InvoiceStatus> STATUS = PathProperty.create("status", InvoiceStatus.class)
+        .withValidator(Validator.notNull());
 
     // ── Timestamps ─────────────────────────────────────────────────────────────
 

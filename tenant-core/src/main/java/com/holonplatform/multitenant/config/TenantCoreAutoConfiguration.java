@@ -64,8 +64,16 @@ import org.springframework.context.annotation.Primary;
  * }</pre>
  */
 @AutoConfiguration
+// The entity-mapping validator below conditions on an EntityManagerFactory, which Hibernate's
+// auto-configuration contributes. @ConditionalOnBean is evaluated in auto-configuration order,
+// so that ordering has to be declared: today it happens to hold indirectly, via the onboarding
+// auto-configuration, which means it would quietly stop holding if that module were removed and
+// the boot-time validation would vanish without a word. Listed by name because the package moved
+// between Boot 3 and Boot 4; unknown names are ignored.
 @org.springframework.boot.autoconfigure.AutoConfigureAfter(
-		name = "com.holonplatform.multitenant.onboarding.config.TenantOnboardingAutoConfiguration")
+		name = { "com.holonplatform.multitenant.onboarding.config.TenantOnboardingAutoConfiguration",
+				"org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
+				"org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration" })
 @EnableConfigurationProperties({ TenantProperties.class, EntityValidationProperties.class })
 @Import(TenantCoreEntityScanRegistrar.class)
 public class TenantCoreAutoConfiguration {

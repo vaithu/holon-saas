@@ -18,7 +18,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +44,7 @@ public class DatabaseTenantInvitationService implements TenantInvitationService 
     private static final Logger log = LoggerFactory.getLogger(DatabaseTenantInvitationService.class);
 
     /** Attribute key used to store the CRM job role on the {@code TenantUser} created upon acceptance. */
+    static final String JOB_ROLE_ATTRIBUTE = "job_role";
 
     /**
      * Minimal RFC 5322 email validator.  Rejects clearly invalid addresses without
@@ -139,10 +142,17 @@ public class DatabaseTenantInvitationService implements TenantInvitationService 
         datastoreHelper.save(acceptedInv);
 
         // ── Step 3: Create and activate the user ─────────────────────────────
+        // Deliberately the single acceptInvitation(...) call, NOT invite() + activate():
+        // the invitee is unauthenticated (they hold only the token validated in Step 1), and
+        // both of those methods are @RequiresPermission-gated, so composing them here made
+        // every acceptance fail with PermissionDeniedException.
         String userId = UUID.randomUUID().toString();
-        TenantUser invited = tenantUserService.invite(
-                invitation.tenantId(), userId, invitation.email(), invitation.platformRole());
-        TenantUser active = tenantUserService.activate(invitation.tenantId(), invited.getUserId());
+        Map<String, String> userAttributes = new HashMap<>();
+        if (invitation.jobRole() != null && !invitation.jobRole().isBlank()) {
+            userAttributes.put(JOB_ROLE_ATTRIBUTE, invitation.jobRole());
+        }
+        TenantUser active = tenantUserService.acceptInvitation(
+                invitation.tenantId(), userId, invitation.email(), invitation.platformRole(), userAttributes);
 
         log.info("Invitation accepted: user '{}' joined tenant '{}'", invitation.email(), invitation.tenantId());
         eventPublisher.publishEvent(new InvitationAcceptedEvent(this, acceptedInv, active, rawPassword));
@@ -173,7 +183,7 @@ public class DatabaseTenantInvitationService implements TenantInvitationService 
     @Override
     @Transactional(readOnly = true)
     public List<UserInvitation> findPendingByTenant(String tenantId) {
-        return datastoreHelper.findByTenantIdAndStatus(tenantId, InvitationStatus.PENDING.name());
+        return datastoreHelper.findByTenantIdAndStatus(tenantId, InvitationStatus.PENDING);
     }
 
     @Override

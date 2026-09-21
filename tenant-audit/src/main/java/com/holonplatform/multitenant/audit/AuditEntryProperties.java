@@ -2,6 +2,7 @@ package com.holonplatform.multitenant.audit;
 
 import com.holonplatform.core.Validator;
 import com.holonplatform.core.property.NumericProperty;
+import com.holonplatform.core.property.PathProperty;
 import com.holonplatform.core.property.StringProperty;
 import com.holonplatform.core.property.TemporalProperty;
 import com.holonplatform.core.property.PropertySet;
@@ -60,10 +61,15 @@ public interface AuditEntryProperties {
 
     /**
      * The action that was audited (e.g., USER_CREATED, PLAN_CHANGED).
-     * Required, enum-based.
+     * Required.
+     *
+     * <p>Typed as the {@link AuditAction} enum rather than a string because the underlying
+     * column is mapped with {@code @Enumerated(EnumType.STRING)}: a query that compared this
+     * path against a {@code String} would be rejected by the Datastore as an incompatible
+     * argument type.
      */
-    StringProperty ACTION = StringProperty.create("action")
-        .withValidator(Validator.notBlank());
+    PathProperty<AuditAction> ACTION = PathProperty.create("action", AuditAction.class)
+        .withValidator(Validator.notNull());
 
     /**
      * The actor who triggered the event (email, user ID, or "system").
@@ -107,9 +113,11 @@ public interface AuditEntryProperties {
     /**
      * Severity level of this audit event (INFO, WARNING, CRITICAL).
      * Required, used for filtering and alerting.
+     *
+     * <p>Enum-typed for the same reason as {@link #ACTION}.
      */
-    StringProperty SEVERITY = StringProperty.create("severity")
-        .withValidator(Validator.notBlank());
+    PathProperty<AuditSeverity> SEVERITY = PathProperty.create("severity", AuditSeverity.class)
+        .withValidator(Validator.notNull());
 
     // ── Timestamps ─────────────────────────────────────────────────────────────
 

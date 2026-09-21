@@ -5,6 +5,7 @@ import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
 import com.holonplatform.multitenant.billing.Subscription;
 import com.holonplatform.multitenant.billing.SubscriptionProperties;
+import com.holonplatform.multitenant.billing.SubscriptionStatus;
 import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import org.springframework.data.domain.Pageable;
 
@@ -33,23 +34,30 @@ public class SubscriptionDatastoreHelper {
     }
 
     public Subscription save(Subscription subscription) {
-        return helper.insert(subscription).getResult().orElse(subscription);
+        // Deliberately BeanDatastoreHelper#save (upsert), NOT #insert — the same bug and fix
+        // documented on TenantUserDatastoreHelper#save. createSubscription() passes a
+        // brand-new Subscription (insert is correct), but changePlan()/cancel()/expire() all
+        // first load the EXISTING subscription, derive a mutated copy and call this same
+        // method; #insert() on an already-persisted row fails with a duplicate-key violation
+        // ("Detached entity passed to persist"), so every plan change, cancellation and
+        // expiry would fail at runtime.
+        return helper.save(subscription).getResult().orElse(subscription);
     }
 
     public Optional<Subscription> findByTenantId(String tenantId) {
         return helper.findTop(1, QueryFilter.eq(SubscriptionProperties.TENANT_ID, tenantId)).findFirst();
     }
 
-    public List<Subscription> findByStatus(String status) {
+    public List<Subscription> findByStatus(SubscriptionStatus status) {
         return helper.findAll(QueryFilter.eq(SubscriptionProperties.STATUS, status)).toList();
     }
 
-    public List<Subscription> findByStatusWithPagination(String status, Pageable pageable) {
+    public List<Subscription> findByStatusWithPagination(SubscriptionStatus status, Pageable pageable) {
         return helper.findPage(pageable.getPageNumber(), pageable.getPageSize(), SubscriptionProperties.STATUS.eq(status))
                 .toList();
     }
 
-    public long countByStatus(String status) {
+    public long countByStatus(SubscriptionStatus status) {
         return helper.count(QueryFilter.eq(SubscriptionProperties.STATUS, status));
     }
 

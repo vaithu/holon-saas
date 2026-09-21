@@ -9,9 +9,12 @@ import java.util.Objects;
  * {@link com.holonplatform.multitenant.onboarding.TenantOnboardingService}
  * when schema provisioning or Flyway migration fails.
  *
- * <p>When this event fires, the tenant record has been marked {@code DELETED}
- * in the repository (best-effort rollback) so the tenant ID is available for
- * re-use if the root cause is corrected.
+ * <p>When this event fires, the record written for the tenant at the start of onboarding has
+ * been removed, so the identifier is free for re-use once the root cause is corrected. If the
+ * configured {@link com.holonplatform.multitenant.onboarding.TenantRepository} does not support
+ * removal, onboarding falls back to marking the record {@code DELETED} — which still satisfies
+ * {@code exists()}, so in that case the identifier stays unavailable and clearing it is an
+ * operator's job.
  *
  * <h2>Typical listeners</h2>
  * <ul>

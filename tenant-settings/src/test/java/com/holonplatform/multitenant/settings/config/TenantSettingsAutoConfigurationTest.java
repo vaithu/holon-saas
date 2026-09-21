@@ -147,15 +147,15 @@ class TenantSettingsAutoConfigurationTest {
                 store.put(planDefault.getPlan().name() + "::" + planDefault.getSettingKey(), planDefault);
                 return planDefault;
             });
-            when(helper.findByPlanAndKey(anyString(), anyString())).thenAnswer(inv ->
+            when(helper.findByPlanAndKey(any(TenantPlan.class), anyString())).thenAnswer(inv ->
                     Optional.ofNullable(store.get(inv.getArgument(0) + "::" + inv.getArgument(1))));
-            when(helper.findAllByPlan(anyString())).thenAnswer(inv -> {
-                String plan = inv.getArgument(0);
+            when(helper.findAllByPlan(any(TenantPlan.class))).thenAnswer(inv -> {
+                TenantPlan plan = inv.getArgument(0);
                 return store.values().stream()
-                        .filter(p -> p.getPlan().name().equals(plan))
+                        .filter(p -> p.getPlan() == plan)
                         .toList();
             });
-            when(helper.deleteByPlanAndKey(anyString(), anyString())).thenAnswer(inv -> {
+            when(helper.deleteByPlanAndKey(any(TenantPlan.class), anyString())).thenAnswer(inv -> {
                 boolean removed = store.remove(inv.getArgument(0) + "::" + inv.getArgument(1)) != null;
                 return removed ? 1L : 0L;
             });

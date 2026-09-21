@@ -2,8 +2,10 @@ package com.holonplatform.multitenant.settings;
 
 import com.holonplatform.core.Validator;
 import com.holonplatform.core.property.NumericProperty;
+import com.holonplatform.core.property.PathProperty;
 import com.holonplatform.core.property.StringProperty;
 import com.holonplatform.core.property.PropertySet;
+import com.holonplatform.multitenant.TenantPlan;
 
 /**
  * Holon {@link PropertySet} interface for {@link TenantPlanSettingDefault}.
@@ -31,12 +33,18 @@ public interface TenantPlanSettingDefaultProperties {
         .messageCode("setting.plan_default.id");
 
     /**
-     * Tenant plan name this default applies to (stored as the enum's {@code name()}).
-     * Required.
+     * Tenant plan this default applies to. Required.
+     *
+     * <p>Typed as the enum rather than as a {@code String}, because the entity field is a
+     * {@link TenantPlan} mapped with {@code @Enumerated(EnumType.STRING)}. Hibernate validates
+     * a query parameter against the <em>field's</em> Java type, not the column type, so
+     * declaring this as a {@code StringProperty} made every filter on it fail at runtime with
+     * {@code QueryArgumentException: argument [FREE] is not assignable to TenantPlan} — the
+     * column's contents look like a string, but the binding never gets that far.
      */
-    StringProperty PLAN = StringProperty.create("plan")
+    PathProperty<TenantPlan> PLAN = PathProperty.create("plan", TenantPlan.class)
         .messageCode("setting.plan_default.plan")
-        .withValidator(Validator.notBlank());
+        .withValidator(Validator.notNull());
 
     // ── Setting data ───────────────────────────────────────────────────────────
 

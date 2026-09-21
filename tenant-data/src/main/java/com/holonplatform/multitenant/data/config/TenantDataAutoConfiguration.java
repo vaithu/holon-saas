@@ -13,6 +13,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,6 +51,19 @@ import org.springframework.context.annotation.Primary;
  * the default can't express (e.g. per-tenant credentials from a secrets manager).
  */
 @AutoConfiguration
+// The metrics section below conditions on a MeterRegistry bean, which Boot's own
+// auto-configuration contributes. @ConditionalOnBean is evaluated in auto-configuration order,
+// so without this the condition is tested before the registry exists and the pool gauges are
+// silently never registered — the metrics look absent rather than broken. Referenced by name
+// because the packages moved between Boot 3 and Boot 4; unknown names are simply ignored.
+@AutoConfigureAfter(name = {
+		"org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
+		"org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
+		"org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration",
+		"org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration",
+		"org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration",
+		"org.springframework.boot.actuate.autoconfigure.metrics.export.simple.SimpleMetricsExportAutoConfiguration"
+})
 @EnableConfigurationProperties(TenantDataProperties.class)
 public class TenantDataAutoConfiguration {
 

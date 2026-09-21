@@ -49,6 +49,45 @@ public interface TenantRateLimiter {
     LimitDefinition getDefinition(String key);
 
     /**
+     * Registers (or replaces) the limit definition for a key.
+     *
+     * <p>An application that defines its own limit keys — as opposed to the
+     * {@link TenantLimitKeys} defaults the auto-configurations register — has to call this at
+     * start-up, otherwise {@link #tryAcquire} has no bucket to consult for that key.
+     *
+     * <p>This is declared here, rather than only on the individual implementations, so that
+     * callers do not have to know which implementation they were given. Before it existed,
+     * application code had to write {@code if (limiter instanceof TokenBucketRateLimiter b)}
+     * to register anything, which meant that merely putting Redis on the classpath — and so
+     * swapping in a different implementation — made those registrations silently disappear and
+     * left the corresponding limits unenforced.
+     *
+     * <p>The default implementation throws, so that an implementation which genuinely cannot
+     * accept definitions at runtime (a fixed-configuration or remote-policy limiter) fails
+     * loudly instead of quietly ignoring the call.
+     *
+     * @param key        the rate-limit key; must not be null
+     * @param definition the definition to apply; must not be null
+     * @throws UnsupportedOperationException if this implementation does not support runtime
+     *         registration
+     */
+    default void registerDefinition(String key, LimitDefinition definition) {
+        throw new UnsupportedOperationException(getClass().getName()
+                + " does not support registering limit definitions at runtime");
+    }
+
+    /**
+     * Registers (or replaces) several limit definitions at once.
+     *
+     * @param definitions definitions by key; must not be null
+     * @throws UnsupportedOperationException if this implementation does not support runtime
+     *         registration
+     */
+    default void registerDefinitions(java.util.Map<String, LimitDefinition> definitions) {
+        definitions.forEach(this::registerDefinition);
+    }
+
+    /**
      * Resets the bucket for the given tenant and key.
      * Useful after a plan upgrade.
      *

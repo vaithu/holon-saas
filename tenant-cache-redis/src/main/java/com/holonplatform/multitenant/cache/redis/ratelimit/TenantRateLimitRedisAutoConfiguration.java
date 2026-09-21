@@ -31,6 +31,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = "com.holonplatform.multitenant.limits.config.TenantRateLimitAutoConfiguration")
+// @ConditionalOnBean is evaluated in auto-configuration order, so without this the condition is
+// assessed before Spring Boot has contributed the StringRedisTemplate and always sees nothing —
+// silently leaving the per-JVM token bucket in place, which is the one outcome a distributed
+// rate limiter exists to avoid. Referenced by name, and under both the Boot 3 and Boot 4 package
+// names, so this module does not pin a particular Boot version.
+@org.springframework.boot.autoconfigure.AutoConfigureAfter(name = {
+        "org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration" })
 @ConditionalOnClass({RedisConnectionFactory.class, TenantRateLimiter.class})
 public class TenantRateLimitRedisAutoConfiguration {
 

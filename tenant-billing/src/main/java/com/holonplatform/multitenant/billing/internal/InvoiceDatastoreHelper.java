@@ -5,6 +5,7 @@ import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
 import com.holonplatform.multitenant.billing.Invoice;
 import com.holonplatform.multitenant.billing.InvoiceProperties;
+import com.holonplatform.multitenant.billing.InvoiceStatus;
 import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import org.springframework.data.domain.Pageable;
 
@@ -33,7 +34,12 @@ public class InvoiceDatastoreHelper {
     }
 
     public Invoice save(Invoice invoice) {
-        return helper.insert(invoice).getResult().orElse(invoice);
+        // Deliberately BeanDatastoreHelper#save (upsert), NOT #insert — the same bug and fix
+        // documented on TenantUserDatastoreHelper#save. Invoices are created new, but
+        // saveInvoice() is also the only path that persists Invoice#markPaid(...) on an
+        // already-persisted invoice; #insert() would fail there with a duplicate-key
+        // violation on INVOICE_ID.
+        return helper.save(invoice).getResult().orElse(invoice);
     }
 
     public Optional<Invoice> findById(String invoiceId) {
@@ -51,7 +57,7 @@ public class InvoiceDatastoreHelper {
                 InvoiceProperties.ISSUED_AT.desc()).toList();
     }
 
-    public List<Invoice> findByStatus(String tenantId, String status) {
+    public List<Invoice> findByStatus(String tenantId, InvoiceStatus status) {
         return helper.findAll(
                 QueryFilter.eq(InvoiceProperties.TENANT_ID, tenantId)
                         .and(QueryFilter.eq(InvoiceProperties.STATUS, status)),

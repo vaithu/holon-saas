@@ -3,6 +3,7 @@ package com.holonplatform.multitenant.settings.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.TenantPlan;
 import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 import com.holonplatform.multitenant.settings.TenantPlanSettingDefault;
 import com.holonplatform.multitenant.settings.TenantPlanSettingDefaultProperties;
@@ -39,14 +40,14 @@ public class TenantPlanSettingDefaultDatastoreHelper {
         return helper.save(planSettingDefault).getResult().orElse(planSettingDefault);
     }
 
-    public Optional<TenantPlanSettingDefault> findByPlanAndKey(String plan, String key) {
+    public Optional<TenantPlanSettingDefault> findByPlanAndKey(TenantPlan plan, String key) {
         return helper.findTop(1,
                 QueryFilter.eq(TenantPlanSettingDefaultProperties.PLAN, plan)
                         .and(QueryFilter.eq(TenantPlanSettingDefaultProperties.SETTING_KEY, key)))
                 .findFirst();
     }
 
-    public List<TenantPlanSettingDefault> findAllByPlan(String plan) {
+    public List<TenantPlanSettingDefault> findAllByPlan(TenantPlan plan) {
         return helper.findAll(QueryFilter.eq(TenantPlanSettingDefaultProperties.PLAN, plan)).toList();
     }
 
@@ -55,7 +56,7 @@ public class TenantPlanSettingDefaultDatastoreHelper {
      *
      * @return number of affected rows (0 or 1)
      */
-    public long deleteByPlanAndKey(String plan, String key) {
+    public long deleteByPlanAndKey(TenantPlan plan, String key) {
         return helper.bulkDelete(
                 QueryFilter.eq(TenantPlanSettingDefaultProperties.PLAN, plan)
                         .and(QueryFilter.eq(TenantPlanSettingDefaultProperties.SETTING_KEY, key)))

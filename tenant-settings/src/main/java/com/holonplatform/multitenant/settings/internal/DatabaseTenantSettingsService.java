@@ -82,7 +82,7 @@ public class DatabaseTenantSettingsService implements TenantSettingsService {
 
         // 2. Plan default
         if (plan != null) {
-            Optional<String> planValue = planDefaultHelper.findByPlanAndKey(plan.name(), setting.key())
+            Optional<String> planValue = planDefaultHelper.findByPlanAndKey(plan, setting.key())
                     .map(TenantPlanSettingDefault::getSettingValue);
             if (planValue.isPresent()) {
                 return planValue;
@@ -109,13 +109,29 @@ public class DatabaseTenantSettingsService implements TenantSettingsService {
     public Map<String, String> getPlanDefaults(TenantPlan plan) {
         Objects.requireNonNull(plan, "plan must not be null");
         Map<String, String> result = new HashMap<>();
-        for (TenantPlanSettingDefault planDefault : planDefaultHelper.findAllByPlan(plan.name())) {
+        for (TenantPlanSettingDefault planDefault : planDefaultHelper.findAllByPlan(plan)) {
             result.put(planDefault.getSettingKey(), planDefault.getSettingValue());
         }
         return result;
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Overrides the interface's default convenience method so that it, too, runs inside a
+     * transaction.
+     *
+     * <p>Without this override the default method is the one the proxy intercepts, and it
+     * carries no {@code @Transactional}; its call to {@link #set(String, String, String)} is
+     * then a plain self-invocation that never reaches the proxy. Removing an override — which
+     * issues a bulk delete — consequently failed with {@code TransactionRequiredException}.
+     */
+    @Override
+    @Transactional
+    public void set(String tenantId, TenantSetting setting, String value) {
+        Objects.requireNonNull(setting, "setting must not be null");
+        set(tenantId, setting.key(), value);
+    }
 
     @Override
     @Transactional
@@ -140,9 +156,9 @@ public class DatabaseTenantSettingsService implements TenantSettingsService {
         Objects.requireNonNull(plan, "plan must not be null");
         Objects.requireNonNull(key, "key must not be null");
         if (value == null) {
-            planDefaultHelper.deleteByPlanAndKey(plan.name(), key);
+            planDefaultHelper.deleteByPlanAndKey(plan, key);
         } else {
-            TenantPlanSettingDefault planDefault = planDefaultHelper.findByPlanAndKey(plan.name(), key)
+            TenantPlanSettingDefault planDefault = planDefaultHelper.findByPlanAndKey(plan, key)
                     .orElseGet(() -> TenantPlanSettingDefault.builder(plan, key).build());
             planDefault.setSettingValue(value);
             planDefaultHelper.save(planDefault);

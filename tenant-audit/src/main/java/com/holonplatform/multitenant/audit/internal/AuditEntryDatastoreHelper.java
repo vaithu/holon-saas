@@ -3,8 +3,10 @@ package com.holonplatform.multitenant.audit.internal;
 import com.holonplatform.core.datastore.Datastore;
 import com.holonplatform.core.datastore.beans.BeanDatastoreHelper;
 import com.holonplatform.core.query.QueryFilter;
+import com.holonplatform.multitenant.audit.AuditAction;
 import com.holonplatform.multitenant.audit.AuditEntry;
 import com.holonplatform.multitenant.audit.AuditEntryProperties;
+import com.holonplatform.multitenant.audit.AuditSeverity;
 import com.holonplatform.multitenant.config.TenantCoreBeanPropertyFix;
 
 import java.util.List;
@@ -52,7 +54,7 @@ public class AuditEntryDatastoreHelper {
     /**
      * Find audit entries for a tenant filtered by action.
      */
-    public List<AuditEntry> findByTenantIdAndAction(String tenantId, String action) {
+    public List<AuditEntry> findByTenantIdAndAction(String tenantId, AuditAction action) {
         return helper.findAll(
                 QueryFilter.eq(AuditEntryProperties.TENANT_ID, tenantId)
                         .and(QueryFilter.eq(AuditEntryProperties.ACTION, action)),
@@ -63,7 +65,7 @@ public class AuditEntryDatastoreHelper {
     /**
      * Find audit entries for a tenant filtered by severity.
      */
-    public List<AuditEntry> findByTenantIdAndSeverity(String tenantId, String severity) {
+    public List<AuditEntry> findByTenantIdAndSeverity(String tenantId, AuditSeverity severity) {
         return helper.findAll(
                 QueryFilter.eq(AuditEntryProperties.TENANT_ID, tenantId)
                         .and(QueryFilter.eq(AuditEntryProperties.SEVERITY, severity)),
@@ -81,7 +83,7 @@ public class AuditEntryDatastoreHelper {
     /**
      * Count audit entries for a tenant filtered by severity.
      */
-    public long countByTenantIdAndSeverity(String tenantId, String severity) {
+    public long countByTenantIdAndSeverity(String tenantId, AuditSeverity severity) {
         return helper.count(
                 QueryFilter.eq(AuditEntryProperties.TENANT_ID, tenantId)
                         .and(QueryFilter.eq(AuditEntryProperties.SEVERITY, severity))

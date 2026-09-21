@@ -12,8 +12,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,10 +35,7 @@ import static org.mockito.Mockito.*;
  * Integration tests verifying {@link PermissionAspect} intercepts
  * {@link RequiresPermission}-annotated methods correctly.
  */
-@SpringBootTest(
-        classes = PermissionAspectTest.TestConfig.class,
-        properties = "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
-@ImportAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
+@SpringBootTest(classes = PermissionAspectTest.TestConfig.class)
 class PermissionAspectTest {
 
     @Autowired FakeTenantPermissionService permissionService;

@@ -173,12 +173,14 @@ public class DefaultTenantQuotaService implements TenantQuotaService {
      * (e.g. after successfully creating a contact, invite, etc.) so that the
      * next quota check reflects the new reality immediately.
      */
+    @Override
     public void invalidateUsageCache(String tenantId, QuotaKey key) {
         usageCache.remove(cacheKey(tenantId, key));
         log.trace("Evicted usage cache for quota '{}' in tenant '{}'", key.key(), tenantId);
     }
 
     /** Clears all cached usage values for a tenant (e.g. on tenant deletion). */
+    @Override
     public void invalidateUsageCacheForTenant(String tenantId) {
         String prefix = tenantId + ":";
         usageCache.keySet().removeIf(k -> k.startsWith(prefix));

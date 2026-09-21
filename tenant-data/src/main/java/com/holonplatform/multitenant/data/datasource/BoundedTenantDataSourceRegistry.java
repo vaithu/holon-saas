@@ -6,13 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -43,11 +43,21 @@ import java.util.concurrent.locks.ReentrantLock;
  * </ul>
  *
  * <h2>Eviction</h2>
- * <p>When the number of cached DataSources reaches {@link #maxSize}, the insertion
- * order is used to evict the oldest tenant. While not strictly access-ordered LRU,
- * this approximation is correct in practice: a pool that has never been evicted is
- * the oldest-created, and eviction happens infrequently (only when a new tenant
- * is first seen after the cache is full).
+ * <p>When the cache is full, the <strong>least recently used</strong> pool is evicted: the one
+ * whose last {@link #getDataSource} call is furthest in the past.
+ *
+ * <p>Least-recently-used is the policy that matters here, rather than least-recently-created.
+ * The pools that are worth keeping are the ones still receiving traffic, and under a
+ * first-in-first-out policy the opposite happens: the tenant that signed up earliest is usually
+ * the busiest, so it is evicted first, immediately re-created by the very next request, and
+ * evicted again — pool thrashing that starts exactly when the deployment reaches capacity and
+ * can least afford it.
+ *
+ * <p>This does not cost the lock-free read path. Each entry carries its own access stamp, which
+ * a cache hit updates without taking any lock; the only additional work is a single atomic
+ * increment. Choosing a victim needs a scan of the entries, but that happens solely on the cold
+ * path — at most once per pool creation, over at most {@link #maxSize} entries — so it is
+ * irrelevant next to opening a database connection pool.
  *
  * <h2>10k-user sizing guidance</h2>
  * <ul>
@@ -113,20 +123,39 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 	 * - loadFactor: 0.75f (standard JDK default)
 	 * - concurrencyLevel: Tuned for Virtual Threads
 	 */
-	private final ConcurrentHashMap<String, DataSource> hotCache =
+	private final ConcurrentHashMap<String, Pooled> hotCache =
 			new ConcurrentHashMap<>(256, 0.75f, VIRTUAL_THREAD_CONCURRENCY_LEVEL);
+
+	/**
+	 * Source of access stamps. A monotonic counter rather than {@link System#nanoTime()}: the
+	 * clock's resolution is coarse on some platforms (notably Windows), so two accesses close
+	 * together can read the same value and leave the eviction order undefined at exactly the
+	 * moment it is being relied upon.
+	 */
+	private final AtomicLong accessClock = new AtomicLong();
+
+	/**
+	 * A cached pool together with the stamp of its most recent use.
+	 *
+	 * <p>The stamp is mutable and written without any lock on the read path; it is only ever
+	 * read while choosing an eviction victim, where a slightly stale value would at worst pick a
+	 * marginally different victim. Precision is not required — ordering is.
+	 */
+	private static final class Pooled {
+		private final DataSource   dataSource;
+		private volatile long      lastAccess;
+
+		Pooled(DataSource dataSource, long lastAccess) {
+			this.dataSource = dataSource;
+			this.lastAccess = lastAccess;
+		}
+	}
 
 	/**
 	 * COLD TIER guard — held only while creating a new pool or evicting an old one.
 	 * Never held during normal (cache-hit) {@link #getDataSource} calls.
 	 */
 	private final ReentrantLock createLock = new ReentrantLock();
-
-	/**
-	 * Insertion-order deque used for eviction book-keeping.
-	 * Protected by {@link #createLock} — only accessed under that lock.
-	 */
-	private final Deque<String> insertionOrder = new ArrayDeque<>();
 
 	public BoundedTenantDataSourceRegistry(TenantDataSourceProvider provider) {
 		this(provider, DEFAULT_MAX_SIZE);
@@ -151,7 +180,7 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 	 * Performance: <100 nanoseconds (pure CPU cache lookup).
 	 *
 	 * <p><strong>Cold path (cache miss)</strong>: acquires {@link #createLock},
-	 * double-checks the cache, creates the pool, evicts the oldest entry if
+	 * double-checks the cache, creates the pool, evicts the least recently used entry if
 	 * needed, then releases the lock. With Virtual Threads, this incurs only
 	 * a microsecond penalty due to structured concurrency, not thread switching overhead.
 	 * Performance: 1-2 microseconds (includes VT context switch + lock).
@@ -161,9 +190,10 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 		String key = normalize(tenantId);
 
 		// ── HOT PATH: completely lock-free ────────────────────────────────────
-		DataSource existing = hotCache.get(key);
+		Pooled existing = hotCache.get(key);
 		if (existing != null) {
-			return existing;
+			existing.lastAccess = accessClock.incrementAndGet();
+			return existing.dataSource;
 		}
 
 		// ── COLD PATH: pool creation — one thread at a time ──────────────────
@@ -172,25 +202,18 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 			// Double-check: another thread may have created it while we waited
 			existing = hotCache.get(key);
 			if (existing != null) {
-				return existing;
+				existing.lastAccess = accessClock.incrementAndGet();
+				return existing.dataSource;
 			}
 
-			// Evict oldest entry if at capacity
+			// Evict the least recently used entry if at capacity
 			if (hotCache.size() >= maxSize) {
-				String eldest = insertionOrder.pollFirst();
-				if (eldest != null) {
-					DataSource evicted = hotCache.remove(eldest);
-					if (evicted != null) {
-						log.info("Evicting oldest DataSource pool for tenant '{}' (cache full at {})", eldest, maxSize);
-						closeQuietly(eldest, evicted);
-					}
-				}
+				evictLeastRecentlyUsed();
 			}
 
 			log.debug("Creating new DataSource pool for tenant '{}'", tenantId);
 			DataSource created = provider.getDataSource(tenantId);
-			hotCache.put(key, created);
-			insertionOrder.addLast(key);
+			hotCache.put(key, new Pooled(created, accessClock.incrementAndGet()));
 			return created;
 
 		} finally {
@@ -198,22 +221,41 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 		}
 	}
 
+	/**
+	 * Removes and closes the pool that has gone longest without being used.
+	 *
+	 * <p>Must be called while holding {@link #createLock}, so that the scan cannot race with a
+	 * concurrent insertion and overshoot the capacity bound.
+	 */
+	private void evictLeastRecentlyUsed() {
+		String victim   = null;
+		long   oldest   = Long.MAX_VALUE;
+		for (Map.Entry<String, Pooled> entry : hotCache.entrySet()) {
+			long stamp = entry.getValue().lastAccess;
+			if (stamp < oldest) {
+				oldest = stamp;
+				victim = entry.getKey();
+			}
+		}
+		if (victim == null) {
+			return;
+		}
+		Pooled evicted = hotCache.remove(victim);
+		if (evicted != null) {
+			log.info("Evicting least recently used DataSource pool for tenant '{}' (cache full at {})",
+					victim, maxSize);
+			closeQuietly(victim, evicted.dataSource);
+		}
+	}
+
 	@Override
 	public void evict(String tenantId) {
 		Objects.requireNonNull(tenantId, "tenantId must not be null");
 		String key = normalize(tenantId);
-		// Remove from hot cache first (stops new callers from getting the old pool)
-		DataSource removed = hotCache.remove(key);
+		Pooled removed = hotCache.remove(key);
 		if (removed != null) {
-			// Clean up insertion-order bookkeeping under create lock
-			createLock.lock();
-			try {
-				insertionOrder.remove(key);
-			} finally {
-				createLock.unlock();
-			}
 			log.info("Evicted DataSource pool for tenant '{}'", tenantId);
-			closeQuietly(tenantId, removed);
+			closeQuietly(tenantId, removed.dataSource);
 		}
 	}
 
@@ -226,9 +268,19 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 		return Collections.unmodifiableSet(ids);
 	}
 
+	/**
+	 * Number of pools currently held, <strong>including</strong> the bootstrap pool used for
+	 * {@code null}-tenant access. This is deliberately the count that eviction works against, so
+	 * it can be one higher than {@code activeTenantIds().size()}, which reports only real tenants.
+	 */
 	@Override
 	public int size() {
 		return hotCache.size();
+	}
+
+	/** Maximum number of pools held before eviction begins. */
+	public int maxSize() {
+		return maxSize;
 	}
 
 	@Override
@@ -236,9 +288,8 @@ public class BoundedTenantDataSourceRegistry implements TenantDataSourceRegistry
 		createLock.lock();
 		try {
 			log.info("Closing all {} cached tenant DataSource pools", hotCache.size());
-			hotCache.forEach((id, ds) -> closeQuietly(id, ds));
+			hotCache.forEach((id, pooled) -> closeQuietly(id, pooled.dataSource));
 			hotCache.clear();
-			insertionOrder.clear();
 		} finally {
 			createLock.unlock();
 		}

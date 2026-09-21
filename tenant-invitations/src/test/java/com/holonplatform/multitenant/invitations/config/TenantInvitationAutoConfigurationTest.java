@@ -97,11 +97,11 @@ class TenantInvitationAutoConfigurationTest {
             });
             when(helper.findByToken(anyString())).thenAnswer(inv ->
                     Optional.ofNullable(store.get(inv.getArgument(0, String.class))));
-            when(helper.findByTenantIdAndStatus(anyString(), anyString())).thenAnswer(inv -> {
+            when(helper.findByTenantIdAndStatus(anyString(), any(InvitationStatus.class))).thenAnswer(inv -> {
                 String tenantId = inv.getArgument(0, String.class);
-                String status = inv.getArgument(1, String.class);
+                InvitationStatus status = inv.getArgument(1, InvitationStatus.class);
                 return store.values().stream()
-                        .filter(i -> i.tenantId().equals(tenantId) && i.status().name().equals(status))
+                        .filter(i -> i.tenantId().equals(tenantId) && i.status() == status)
                         .toList();
             });
             when(helper.findByTenantIdAndEmail(anyString(), anyString())).thenAnswer(inv -> {

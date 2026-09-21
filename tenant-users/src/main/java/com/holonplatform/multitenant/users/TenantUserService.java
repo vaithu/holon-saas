@@ -36,6 +36,34 @@ public interface TenantUserService {
     TenantUser invite(String tenantId, String userId, String email, TenantRole role);
 
     /**
+     * Creates and immediately activates a user who has accepted a valid invitation.
+     *
+     * <h3>Why this is separate from {@link #invite} + {@link #activate}</h3>
+     * <p>Invitation acceptance is performed by the <em>invitee</em>, who is by definition not
+     * yet a member of the tenant and is typically not authenticated at all — they have only
+     * proven possession of a valid, unexpired, single-use invitation token. Composing this
+     * flow out of {@link #invite} and {@link #activate} therefore cannot work: both are
+     * guarded by {@code @RequiresPermission({"USER_INVITE"/"USER_MANAGE", "ADMIN"})}, so the
+     * permission aspect finds no privileged principal and throws
+     * {@code PermissionDeniedException}, failing every acceptance.
+     *
+     * <p>This method is deliberately <strong>not</strong> permission-gated. Authorisation for
+     * it comes from the invitation token itself, which the caller
+     * ({@code TenantInvitationService#accept}) must validate — checking status, expiry and
+     * single-use transition — <em>before</em> calling this.
+     *
+     * @param tenantId   tenant the user is joining; must not be null
+     * @param userId     unique user identifier; must not be null
+     * @param email      user email; must not be null
+     * @param role       assigned role; must not be null
+     * @param attributes extra metadata to store on the user (e.g. {@code job_role}); may be null
+     * @return the created, {@link TenantUserStatus#ACTIVE ACTIVE} {@link TenantUser}
+     * @throws TenantUserException if the user already belongs to the tenant
+     */
+    TenantUser acceptInvitation(String tenantId, String userId, String email, TenantRole role,
+            java.util.Map<String, String> attributes);
+
+    /**
      * Transitions a user to {@link TenantUserStatus#ACTIVE ACTIVE}.
      *
      * @param tenantId tenant; must not be null

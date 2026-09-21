@@ -1,5 +1,6 @@
 package com.holonplatform.multitenant.data;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -59,6 +60,13 @@ public enum DatabaseDialect {
 	 */
 	ORACLE("ALTER SESSION SET CURRENT_SCHEMA = \"%s\"", null);
 
+	/**
+	 * Allow-list of characters permitted in a schema name that is about to be interpolated
+	 * into SQL — see {@link #requireSafeSchemaName(String)}.
+	 */
+	private static final java.util.regex.Pattern SAFE_SCHEMA_NAME =
+			java.util.regex.Pattern.compile("^[A-Za-z_][A-Za-z0-9_-]{0,62}$");
+
 	private final String sqlTemplate;
 	private final String createSchemaTemplate;
 
@@ -85,7 +93,7 @@ public enum DatabaseDialect {
 	 * @return the ready-to-execute SQL string
 	 */
 	public String buildInitSql(String schemaName) {
-		return String.format(sqlTemplate, schemaName);
+		return String.format(sqlTemplate, requireSafeSchemaName(schemaName));
 	}
 
 	/**
@@ -102,7 +110,47 @@ public enum DatabaseDialect {
 	public Optional<String> buildCreateSchemaSql(String schemaName) {
 		return createSchemaTemplate == null
 				? Optional.empty()
-				: Optional.of(String.format(createSchemaTemplate, schemaName));
+				: Optional.of(String.format(createSchemaTemplate, requireSafeSchemaName(schemaName)));
+	}
+
+	/**
+	 * Validates that {@code schemaName} is a safe SQL identifier before it is interpolated
+	 * into a statement.
+	 *
+	 * <h2>Why this check is essential</h2>
+	 * <p>A schema name is an <em>identifier</em>, not a value, so it cannot be supplied via a
+	 * JDBC bind parameter — it has to be concatenated into the SQL text. The resulting
+	 * statement is then executed with full privileges as {@code connectionInitSql} on every
+	 * pool checkout, and as DDL when auto-creating a tenant schema. Schema names are derived
+	 * from tenant identifiers, which originate from untrusted request input (a {@code Host}
+	 * label, a URL path segment, an HTTP header), so a name containing a quote character
+	 * would terminate the surrounding quoted identifier early and let the remainder of the
+	 * string execute as SQL.
+	 *
+	 * <p>Quoting alone is not a sufficient defence (every dialect here uses a different quote
+	 * character, and escaping rules differ), so this validates against a conservative
+	 * allow-list instead: letters, digits, underscore and hyphen, not starting with a digit or
+	 * hyphen. That accommodates every prefix/suffix convention {@code SchemaNameResolver}
+	 * supports — including hyphenated tenant identifiers such as {@code acme-corp}, which are
+	 * legal precisely because the generated SQL always quotes the identifier — while making
+	 * quote-escaping moot.
+	 *
+	 * @param schemaName the unquoted schema name to validate; must not be null
+	 * @return {@code schemaName}, unchanged
+	 * @throws NullPointerException     if {@code schemaName} is null
+	 * @throws IllegalArgumentException if {@code schemaName} is not a safe SQL identifier
+	 */
+	public static String requireSafeSchemaName(String schemaName) {
+		Objects.requireNonNull(schemaName, "schemaName must not be null");
+		if (!SAFE_SCHEMA_NAME.matcher(schemaName).matches()) {
+			throw new IllegalArgumentException(
+					"Refusing to build SQL for unsafe schema name '" + schemaName + "'. A schema name is a SQL "
+							+ "identifier and cannot be parameterised, so it must match "
+							+ SAFE_SCHEMA_NAME.pattern() + " (letters, digits, underscore and hyphen, not "
+							+ "starting with a digit or hyphen, max 63 characters). Check the tenant identifier "
+							+ "this was derived from and the configured SchemaNameResolver prefix/suffix.");
+		}
+		return schemaName;
 	}
 }
 

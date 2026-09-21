@@ -121,12 +121,18 @@ public class CachingTenantDetailsLoader implements TenantDetailsLoader {
 	 */
 	public void invalidate(String tenantId) {
 		Objects.requireNonNull(tenantId, "tenantId must not be null");
-		cache.evict(tenantId);
+		// evictIfPresent rather than evict: Spring's Cache contract allows evict() to complete
+		// asynchronously, and the Redis implementation takes that liberty. Callers invalidate
+		// precisely because they have just changed something that must not be served stale —
+		// suspending a tenant, changing its plan — so an eviction that might land later is no
+		// use. evictIfPresent is defined to have taken effect by the time it returns.
+		cache.evictIfPresent(tenantId);
 	}
 
 	/** Evicts every cached {@link TenantDetails} entry. */
 	public void invalidateAll() {
-		cache.clear();
+		// invalidate() is the immediate counterpart of clear(), for the same reason as above.
+		cache.invalidate();
 	}
 
 	/** Returns the wrapped loader. */

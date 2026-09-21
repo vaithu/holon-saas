@@ -117,6 +117,12 @@ class TenantUserAutoConfigurationTest {
             }
 
             @Override
+            public TenantUser acceptInvitation(String tenantId, String userId, String email, TenantRole role,
+                    java.util.Map<String, String> attributes) {
+                return TenantUser.builder(userId, tenantId, email).role(role).build();
+            }
+
+            @Override
             public TenantUser activate(String tenantId, String userId) {
                 return null;
             }

@@ -80,6 +80,7 @@ public class RedisTenantRateLimiter implements TenantRateLimiter {
      * @param key        rate-limit key; must not be null
      * @param definition bucket capacity and window; must not be null
      */
+    @Override
     public void registerDefinition(String key, LimitDefinition definition) {
         Objects.requireNonNull(key,        "key must not be null");
         Objects.requireNonNull(definition, "definition must not be null");
@@ -91,6 +92,7 @@ public class RedisTenantRateLimiter implements TenantRateLimiter {
      *
      * @param defs map of key → definition; must not be null
      */
+    @Override
     public void registerDefinitions(Map<String, LimitDefinition> defs) {
         Objects.requireNonNull(defs, "defs must not be null");
         defs.forEach(this::registerDefinition);

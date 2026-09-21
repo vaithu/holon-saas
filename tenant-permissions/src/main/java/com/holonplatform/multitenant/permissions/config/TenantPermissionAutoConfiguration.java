@@ -76,7 +76,15 @@ import org.springframework.context.annotation.Import;
  *     .build();
  * }</pre>
  */
-@AutoConfiguration
+/**
+ * The permission services are conditional on a {@link com.holonplatform.multitenant.TenantUserRoleResolver}
+ * bean, and the default implementation of that interface is contributed by the tenant-users
+ * module. Conditions are evaluated in auto-configuration order, so without an explicit ordering
+ * declaration this class could be processed first and silently back off — leaving an application
+ * with no {@code TenantPermissionService} at all. The reference is by name because tenant-users
+ * is an optional module that need not be on the classpath.
+ */
+@AutoConfiguration(afterName = "com.holonplatform.multitenant.users.config.TenantUserAutoConfiguration")
 @Import(TenantPermissionEntityScanRegistrar.class)
 public class TenantPermissionAutoConfiguration {
 

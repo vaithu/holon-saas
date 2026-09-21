@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -62,6 +63,52 @@ public class DatabaseTenantUserService implements TenantUserService {
 
         datastoreHelper.save(user);
         log.info("Invited user '{}' ({}) to tenant '{}' as {}", userId, email, tenantId, role);
+        return user;
+    }
+
+    @Override
+    @Transactional
+    public TenantUser acceptInvitation(String tenantId, String userId, String email, TenantRole role,
+            Map<String, String> attributes) {
+        // Deliberately NOT @RequiresPermission-gated — see TenantUserService#acceptInvitation.
+        // The caller authorises this by validating the invitation token first.
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(email, "email must not be null");
+        Objects.requireNonNull(role, "role must not be null");
+
+        Optional<TenantUser> existing = datastoreHelper.findById(userId, tenantId);
+        if (existing.isPresent()) {
+            throw new TenantUserException(
+                    "User '" + userId + "' already belongs totenant '" + tenantId + "'",
+                    tenantId, userId);
+        }
+
+        // A membership is unique per (tenant, email), enforced by UQ_TENANT_EMAIL. Checking it
+        // here turns what would otherwise surface as a raw constraint-violation SQL error into
+        // the domain exception callers can actually act on — which matters because this method
+        // is the ungated bootstrap path, used by signup to create a workspace owner and by the
+        // invitation flow to admit a new member, both of which may legitimately be retried.
+        if (datastoreHelper.findByTenantIdAndEmailIgnoreCase(tenantId, email).isPresent()) {
+            throw new TenantUserException(
+                    "A user with email '" + email + "' already belongs to tenant '" + tenantId + "'",
+                    tenantId, userId);
+        }
+
+        TenantUser.Builder builder = TenantUser.builder(userId, tenantId, email.toLowerCase(Locale.ROOT))
+                .role(role)
+                .status(TenantUserStatus.ACTIVE);
+        if (attributes != null) {
+            attributes.forEach((k, v) -> {
+                if (k != null && v != null) {
+                    builder.attribute(k, v);
+                }
+            });
+        }
+        TenantUser user = builder.build();
+
+        datastoreHelper.save(user);
+        log.info("Invitation accepted — user '{}' ({}) joined tenant '{}' as {}", userId, email, tenantId, role);
         return user;
     }
 
