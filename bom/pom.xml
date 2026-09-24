@@ -47,6 +47,21 @@
             <!--  Upstream BOMs  re-exported so consumers need only one import  -->
 
             <!--
+                JUnit  imported before spring-boot-dependencies so every JUnit artifact
+                (jupiter and platform) is exported at a single version; mixing
+                junit-jupiter-engine with an older junit-platform-commons fails at runtime
+                with IllegalAccessError, and Spring Framework 7's SpringExtension requires
+                the JUnit 6.1 API.
+            -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
                 Spring Boot BOM  manages spring-boot-*, spring-*, slf4j, logback, etc.
                 Version kept in sync with the root POM property ${spring-boot.version}.
             -->

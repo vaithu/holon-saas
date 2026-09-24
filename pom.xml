@@ -4,6 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>com.iyensoft</groupId>
+        <artifactId>parent</artifactId>
+        <version>2.1.0</version>
+    </parent>
+
     <!--  Coordinates  -->
     <groupId>com.holon-platform.multi-tenancy</groupId>
     <artifactId>holon-multi-tenancy-root</artifactId>
@@ -26,10 +32,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- Dependency versions -->
-        <spring-boot.version>4.1.0</spring-boot.version>
-        <servlet.version>6.1.0</servlet.version>
+        <spring-boot.version>4.1.1</spring-boot.version>
         <holon-core.version>12.0.0</holon-core.version>
-        <slf4j.version>2.0.18</slf4j.version>
+
+        <!--
+            junit: Spring Framework 7's SpringExtension requires the JUnit 6.1 API
+            (ExtensionContext.Store#computeIfAbsent), while Spring Boot 4.1.1 manages JUnit
+            6.0.3, which fails at runtime with NoSuchMethodError. 6.1.3 is also the version
+            the com.iyensoft:parent pom manages for junit-jupiter-api/engine.
+        -->
+        <junit.jupiter.version>6.1.3</junit.jupiter.version>
 
         <!--
             Version of this project's own SaaS modules, used in dependencyManagement below.
@@ -42,14 +54,13 @@
         -->
         <holon-multi-tenancy.version>1.0.0</holon-multi-tenancy.version>
 
-        <!-- CVE overrides -->
-        <h2.version>2.4.240</h2.version>
-        <assertj.version>3.27.7</assertj.version>
-        <spring-security.version>7.1.0</spring-security.version>
-        <logback.version>1.5.34</logback.version>
-        <snakeyaml.version>2.6</snakeyaml.version>
-        <commons-lang3.version>3.20.0</commons-lang3.version>
-        <mockito.version>5.23.0</mockito.version>
+        <!--
+            Flyway is the one deliberate override of a Spring-Boot-managed version; see the
+            rationale on the flyway-core/flyway-database-postgresql entries below. Everything
+            else that Spring Boot manages (H2, AssertJ, Spring Security, Logback, SnakeYAML,
+            commons-lang3, Mockito, Caffeine, jakarta.servlet-api) is left to the
+            spring-boot-dependencies BOM import - do not pin it here.
+        -->
         <flyway.version>11.4.0</flyway.version>
         <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
@@ -87,6 +98,20 @@
     <dependencyManagement>
         <dependencies>
 
+            <!--
+                JUnit - imported before spring-boot-dependencies so every JUnit artifact
+                (jupiter and platform) resolves to the same version; mixing
+                junit-jupiter-engine with an older junit-platform-commons fails at runtime
+                with IllegalAccessError.
+            -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- Spring Boot BOM  manages all spring-boot-*, spring-*, slf4j, logback, etc. -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -111,14 +136,6 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Servlet API -->
-            <dependency>
-                <groupId>jakarta.servlet</groupId>
-                <artifactId>jakarta.servlet-api</artifactId>
-                <version>${servlet.version}</version>
-                <scope>provided</scope>
-            </dependency>
-
             <!--
                 holon-datastore-jpa BOM  manages holon-datastore-jpa, holon-datastore-jpa-spring,
                 holon-datastore-jpa-spring-boot, holon-starter-jpa-hibernate and
@@ -133,61 +150,24 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- CVE overrides -->
-            <dependency>
-                <groupId>com.h2database</groupId>
-                <artifactId>h2</artifactId>
-                <version>${h2.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.assertj</groupId>
-                <artifactId>assertj-core</artifactId>
-                <version>${assertj.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.security</groupId>
-                <artifactId>spring-security-bom</artifactId>
-                <version>${spring-security.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>ch.qos.logback</groupId>
-                <artifactId>logback-classic</artifactId>
-                <version>${logback.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.yaml</groupId>
-                <artifactId>snakeyaml</artifactId>
-                <version>${snakeyaml.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>${commons-lang3.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-aop</artifactId>
-                <version>${spring-boot.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-core</artifactId>
-                <version>${flyway.version}</version>
-            </dependency>
             <!--
+                Flyway: the one deliberate override of a Spring-Boot-managed version.
                 spring-boot-dependencies' own <properties> pins this to a DIFFERENT, newer
                 Flyway release than the flyway.version property above overrides flyway-core to
                 — ${flyway.version} placeholders inside an already-published, externally-authored
                 BOM resolve using THAT BOM's own property values, not this reactor's. Without
-                this explicit override, flyway-core (11.4.0, forced above) and
+                this explicit override, flyway-core (11.4.0, forced here) and
                 flyway-database-postgresql (12.4.0, from the BOM) end up on the classpath
                 together — binary-incompatible internal APIs across a Flyway major/minor
                 boundary, failing at runtime with: NoSuchMethodError:
                 PluginRegister.getExact(Class) — confirmed empirically by
                 TenantMigrationScriptsPostgresTest (tenant-onboarding).
             -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-database-postgresql</artifactId>
@@ -206,13 +186,6 @@
                 <groupId>net.logstash.logback</groupId>
                 <artifactId>logstash-logback-encoder</artifactId>
                 <version>${logstash-logback-encoder.version}</version>
-            </dependency>
-
-            <!-- Caffeine Cache - Virtual Thread optimized caching -->
-            <dependency>
-                <groupId>com.github.ben-manes.caffeine</groupId>
-                <artifactId>caffeine</artifactId>
-                <version>3.1.8</version>
             </dependency>
 
             <!-- Holon SaaS modules own version management -->
