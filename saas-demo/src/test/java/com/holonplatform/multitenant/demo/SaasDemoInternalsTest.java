@@ -30,6 +30,7 @@ import com.holonplatform.multitenant.demo.service.DataStrategyReport;
 import com.holonplatform.multitenant.demo.service.DemoAsyncProbe;
 import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.TenantScopedEventLog;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.holonplatform.multitenant.resolver.CompositeTenantResolver;
 import com.holonplatform.multitenant.security.event.CrossTenantAccessAttemptEvent;
 
@@ -58,9 +59,9 @@ class SaasDemoInternalsTest {
 
     @BeforeEach
     void signUpAWorkspace() {
-        long stamp = System.nanoTime() % 100000;
-        workspace = provisioner.signUpWorkspace("b4-" + stamp, "Acme Ltd",
-                "owner@b4-" + stamp + ".test", "owner-secret");
+        String workspaceId = TestWorkspaceIds.uniqueWorkspaceId("b4");
+        workspace = provisioner.signUpWorkspace(workspaceId, "Acme Ltd",
+                TestWorkspaceIds.ownerEmail(workspaceId), "owner-secret");
     }
 
     // ── F18: tenant resolution strategies ──────────────────────────────────────────────

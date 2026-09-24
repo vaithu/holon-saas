@@ -19,6 +19,7 @@ import com.holonplatform.multitenant.demo.service.AccountingService;
 import com.holonplatform.multitenant.demo.service.DemoRoles;
 import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.SalesService;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.holonplatform.multitenant.invitations.InvitationRequest;
 import com.holonplatform.multitenant.invitations.TenantInvitationService;
 import com.holonplatform.multitenant.invitations.UserInvitation;
@@ -56,7 +57,9 @@ class SaasDemoFlowTest {
     void ownerInvitesTwoUsersWhoThenSeeDifferentViewsAndMethods() {
 
         // 1. Tenant sign-up: provisions the tenant_<id> schema and the owner's account.
-        String workspace = "acme-" + System.nanoTime() % 100000;
+        // Only the workspace ID has to be unique: accounts are scoped to a workspace, so a fresh
+        // workspace always starts out with no members and the e-mails below can stay fixed.
+        String workspace = TestWorkspaceIds.uniqueWorkspaceId("acme");
         TenantDetails tenant = provisioner.signUpWorkspace(
                 workspace, "Acme Corp", "owner@acme.test", "owner-secret");
 

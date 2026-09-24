@@ -26,6 +26,7 @@ import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.ReportService;
 import com.holonplatform.multitenant.demo.service.SalesService;
 import com.holonplatform.multitenant.demo.service.TeamService;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.holonplatform.multitenant.limits.RateLimitExceededException;
 import com.holonplatform.multitenant.limits.TenantRateLimiter;
 import com.holonplatform.multitenant.quotas.QuotaCheckResult;
@@ -60,7 +61,7 @@ class SaasDemoPlatformFeaturesTest {
 
     @BeforeEach
     void signUpWorkspace() {
-        String workspace = "batch2-" + System.nanoTime() % 100000;
+        String workspace = TestWorkspaceIds.uniqueWorkspaceId("batch2");
         tenant = provisioner.signUpWorkspace(
                 workspace, "Batch Two Ltd", "owner@" + workspace + ".test", "owner-secret");
         authenticateAsOwner();
@@ -95,7 +96,7 @@ class SaasDemoPlatformFeaturesTest {
     @Test
     void settingsAreNotSharedBetweenWorkspaces() {
         TenantDetails other = provisioner.signUpWorkspace(
-                "other-" + System.nanoTime() % 100000, "Other Ltd", "owner@other.test", "secret");
+                TestWorkspaceIds.uniqueWorkspaceId("other"), "Other Ltd", "owner@other.test", "secret");
 
         TenantContextTemplate.run(tenant, () ->
                 settingsService.set(tenant.tenantId(), DemoSettings.SALES_CURRENCY, "GBP"));
@@ -158,7 +159,7 @@ class SaasDemoPlatformFeaturesTest {
     @Test
     void oneWorkspaceSpendingItsBudgetDoesNotAffectAnother() {
         TenantDetails other = provisioner.signUpWorkspace(
-                "rl-" + System.nanoTime() % 100000, "Other Ltd", "owner@rl.test", "secret");
+                TestWorkspaceIds.uniqueWorkspaceId("rl"), "Other Ltd", "owner@rl.test", "secret");
 
         TenantContextTemplate.run(tenant, () -> {
             for (int i = 0; i < DemoLimits.SALES_RECORDS_PER_MINUTE; i++) {

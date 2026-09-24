@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import com.holonplatform.multitenant.TenantDetails;
 import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.PoolRegistryReport;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 
 /**
  * F24 — the bounded connection-pool registry, exercised against the running application's real
@@ -42,10 +43,10 @@ class SaasDemoPoolRegistryTest {
         // One more workspace than the cap, so that keeping them all open is impossible.
         int count = pools.maxPools() + 1;
         for (int i = 0; i < count; i++) {
-            long stamp = System.nanoTime() % 1000000;
+            String workspaceId = TestWorkspaceIds.uniqueWorkspaceId("pool" + i);
             TenantDetails workspace = provisioner.signUpWorkspace(
-                    "pool" + i + "-" + stamp, "Pool Test " + i,
-                    "owner@pool" + i + "-" + stamp + ".test", "owner-secret");
+                    workspaceId, "Pool Test " + i,
+                    TestWorkspaceIds.ownerEmail(workspaceId), "owner-secret");
             workspaces.add(workspace.tenantId());
         }
     }

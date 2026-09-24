@@ -24,6 +24,7 @@ import com.holonplatform.multitenant.demo.service.DemoRoles;
 import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.PlatformConsoleService;
 import com.holonplatform.multitenant.demo.service.TenantBinding;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.holonplatform.multitenant.permissions.view.RoleDefinition;
 import com.holonplatform.multitenant.permissions.view.RoleMatrixItem;
 import com.holonplatform.multitenant.permissions.view.TenantRoleManagementService;
@@ -52,11 +53,12 @@ class SaasDemoAdminFeaturesTest {
 
     @BeforeEach
     void signUpTwoWorkspaces() {
-        long stamp = System.nanoTime() % 100000;
-        first  = provisioner.signUpWorkspace("b3a-" + stamp, "Acme Ltd",
-                "owner@b3a-" + stamp + ".test", "owner-secret");
-        second = provisioner.signUpWorkspace("b3b-" + stamp, "Globex Ltd",
-                "owner@b3b-" + stamp + ".test", "owner-secret");
+        String firstId  = TestWorkspaceIds.uniqueWorkspaceId("b3a");
+        String secondId = TestWorkspaceIds.uniqueWorkspaceId("b3b");
+        first  = provisioner.signUpWorkspace(firstId, "Acme Ltd",
+                TestWorkspaceIds.ownerEmail(firstId), "owner-secret");
+        second = provisioner.signUpWorkspace(secondId, "Globex Ltd",
+                TestWorkspaceIds.ownerEmail(secondId), "owner-secret");
     }
 
     @AfterEach

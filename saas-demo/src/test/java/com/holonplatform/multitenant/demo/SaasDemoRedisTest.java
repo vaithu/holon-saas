@@ -20,6 +20,7 @@ import com.holonplatform.multitenant.cache.redis.ratelimit.RedisTenantRateLimite
 import com.holonplatform.multitenant.demo.service.DemoLimits;
 import com.holonplatform.multitenant.demo.service.DemoTenantProvisioner;
 import com.holonplatform.multitenant.demo.service.RedisFeatureReport;
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.holonplatform.multitenant.limits.RateLimitExceededException;
 import com.holonplatform.multitenant.limits.TenantRateLimiter;
 
@@ -54,9 +55,9 @@ class SaasDemoRedisTest {
 
     @BeforeEach
     void signUpAWorkspace() {
-        long stamp = System.nanoTime() % 100000;
-        workspace = provisioner.signUpWorkspace("b5-" + stamp, "Redis Ltd",
-                "owner@b5-" + stamp + ".test", "owner-secret");
+        String workspaceId = TestWorkspaceIds.uniqueWorkspaceId("b5");
+        workspace = provisioner.signUpWorkspace(workspaceId, "Redis Ltd",
+                TestWorkspaceIds.ownerEmail(workspaceId), "owner-secret");
     }
 
     // ── The swap itself ────────────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ class SaasDemoRedisTest {
 
     @Test
     void oneWorkspaceExhaustingItsWindowDoesNotAffectAnother() {
-        TenantDetails other = provisioner.signUpWorkspace("b5-other-" + (System.nanoTime() % 100000),
+        TenantDetails other = provisioner.signUpWorkspace(TestWorkspaceIds.uniqueWorkspaceId("b5-other"),
                 "Other Ltd", "owner@b5-other.test", "owner-secret");
         String key = DemoLimits.SALES_RECORD_LIMIT_KEY;
 
@@ -135,7 +136,7 @@ class SaasDemoRedisTest {
         String key = DemoLimits.SALES_RECORD_LIMIT_KEY;
         rateLimiter.tryAcquire(workspace.tenantId(), key);
 
-        TenantDetails other = provisioner.signUpWorkspace("b5-peek-" + (System.nanoTime() % 100000),
+        TenantDetails other = provisioner.signUpWorkspace(TestWorkspaceIds.uniqueWorkspaceId("b5-peek"),
                 "Peek Ltd", "owner@b5-peek.test", "owner-secret");
         rateLimiter.tryAcquire(other.tenantId(), key);
 

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import com.holonplatform.multitenant.demo.support.TestWorkspaceIds;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
@@ -63,11 +64,11 @@ class SignupToPermissionsE2ETest {
 
     // A workspace id unique to this run, so the journey also passes against a server that has
     // already been used — for instance when re-running without restarting the application.
-    private static final String WORKSPACE = "acme-" + (System.currentTimeMillis() % 100000);
+    private static final String WORKSPACE = TestWorkspaceIds.uniqueWorkspaceId("acme");
 
     // A second workspace, so that "every workspace on the platform" and "suspension stops at
     // the tenant boundary" have something to actually be demonstrated against.
-    private static final String SECOND_WORKSPACE = "globex-" + (System.currentTimeMillis() % 100000);
+    private static final String SECOND_WORKSPACE = TestWorkspaceIds.uniqueWorkspaceId("globex");
 
     private static final String SECOND_OWNER_EMAIL = "owner@globex.test";
 
