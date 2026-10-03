@@ -887,18 +887,44 @@ class SignupToPermissionsE2ETest {
     /**
      * Submits the sign-in form without asserting that it worked — the suspension step needs a
      * sign-in that is expected to be refused.
+     *
+     * <p>The form takes no workspace: it derives the candidates from the address. Re-running
+     * this journey against a server that already holds an earlier run's workspaces leaves the
+     * fixed demo addresses as members of several of them, so the chooser is answered here when
+     * it appears.
      */
     private static void attemptSignIn(String workspace, String email) {
         page.navigate(BASE_URL + "/login");
         page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Sign in")).waitFor();
 
-        page.getByLabel("Workspace").fill(workspace);
         page.getByLabel("Email").fill(email);
         // Addressed by role rather than by label: a Vaadin password field also exposes a
         // "Show password" reveal button, which a label lookup for "Password" would match too.
         page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Password").setExact(true))
                 .fill(PASSWORD);
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Sign in")).click();
+
+        chooseWorkspaceIfAsked(workspace);
+    }
+
+    /**
+     * Picks the wanted workspace out of the chooser, if the address turned out to belong to
+     * more than one.
+     */
+    private static void chooseWorkspaceIfAsked(String workspace) {
+        Locator chooser = page.getByRole(AriaRole.HEADING,
+                new Page.GetByRoleOptions().setName("Choose a workspace"));
+        try {
+            chooser.waitFor(new Locator.WaitForOptions().setTimeout(2_000));
+        } catch (RuntimeException noChooser) {
+            // A single workspace — the view signed in directly, which is the common case.
+            return;
+        }
+
+        page.getByRole(AriaRole.GRIDCELL,
+                new Page.GetByRoleOptions().setName(Pattern.compile("\\(" + Pattern.quote(workspace) + "\\)$")))
+                .first().click();
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Open workspace")).click();
     }
 
     /**
@@ -910,7 +936,6 @@ class SignupToPermissionsE2ETest {
         page.navigate(BASE_URL + "/login");
         page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Sign in")).waitFor();
 
-        page.getByLabel("Workspace").fill("platform");
         page.getByLabel("Email").fill("admin@holon.test");
         page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Password").setExact(true))
                 .fill("platform-admin");

@@ -59,6 +59,22 @@ public class PlatformAccountStore implements AccountCredentialsStore {
         return hashes.isEmpty() ? Optional.empty() : Optional.of(hashes.getFirst());
     }
 
+    /**
+     * Lists every workspace in which the address holds an account.
+     *
+     * <p>This is what lets the login form ask for the email alone: the workspace is derived
+     * from the address rather than typed. An address that is a member of several workspaces
+     * yields several ids here, and the view then asks which one to enter.
+     *
+     * @param email the address to look up
+     * @return the workspace ids, in a stable order; empty if the address has no account at all
+     */
+    public List<String> findWorkspaceIds(String email) {
+        return jdbc.queryForList(
+                "SELECT tenant_id FROM demo_account WHERE email = ? ORDER BY tenant_id",
+                String.class, normalize(email));
+    }
+
     /** Emails are stored and compared in a normalized form so login is case-insensitive. */
     private static String normalize(String email) {
         return email == null ? null : email.trim().toLowerCase(Locale.ROOT);

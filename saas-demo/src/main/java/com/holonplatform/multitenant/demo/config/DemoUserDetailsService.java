@@ -19,8 +19,11 @@ import com.holonplatform.multitenant.security.TenantUserDetails;
  *
  * <h2>The "workspace/email" username</h2>
  * <p>The same email address may hold an account in several workspaces, so the email alone does
- * not identify an account. The login view therefore submits a composite username of the form
- * {@code workspace/email}, which this service splits apart.
+ * not identify an account. Authentication therefore uses a composite username of the form
+ * {@code workspace/email}, which this service splits apart. The login view no longer asks the
+ * user for the workspace half: it looks the candidates up from the address (see
+ * {@code WorkspaceDirectory}) and tries each one, which is why this service must stay cheap
+ * and side-effect free when the credentials do not match.
  *
  * <p>Crucially, the {@link UserDetails} returned is built with the <em>bare email</em> as its
  * username, not the composite string. Two framework mechanisms depend on that:
@@ -84,8 +87,9 @@ public class DemoUserDetailsService implements UserDetailsService {
                 // so the login view can say plainly that the workspace is suspended (F14)
                 // instead of the misleading "bad credentials". The trade-off is accepted
                 // knowingly: it confirms the workspace exists. That is not a leak worth
-                // guarding here, because the workspace id already travels in invitation URLs
-                // and is typed into this very form by every member who signs in.
+                // guarding here, because the login view only ever probes workspaces the
+                // address already holds a credential in, and the workspace id already travels
+                // in invitation URLs.
                 .enabled(tenant.isActive())
                 .build();
     }

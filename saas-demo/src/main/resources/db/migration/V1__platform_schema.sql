@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS tenant_attributes (
 -- it through the AccountCredentialsStore SPI.
 --
 -- The primary key is (tenant_id, email): the same person may hold an account
--- in more than one workspace, which is why the login form asks for the
--- workspace as well as the email.
+-- in more than one workspace. The login form asks only for the email and
+-- derives the candidate workspaces from this table — see WorkspaceDirectory.
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS demo_account (
     tenant_id        VARCHAR(64)  NOT NULL,

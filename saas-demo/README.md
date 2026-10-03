@@ -24,10 +24,10 @@ Then open <http://localhost:8080>. The database is in-memory, so every restart s
 | Step | What to do | What it demonstrates |
 |---|---|---|
 | 1 | Go to `/signup`, create workspace `acme` with owner `owner@acme.test` | A `tenant_acme` schema is created and migrated on the fly |
-| 2 | Sign in at `/login` as workspace `acme`, `owner@acme.test` | Tenant bound from the authenticated principal |
+| 2 | Sign in at `/login` as `owner@acme.test` | The workspace is found from the address; the tenant is then bound from the authenticated principal |
 | 3 | Open **Team**, invite `alice@acme.test` as SALESMAN and `bob@acme.test` as ACCOUNTANT | Invitation records written into the tenant's own schema |
 | 4 | Open each generated invitation link and choose a password | Membership + credentials created for the invitee |
-| 5 | Sign in as Alice, then (later) as Bob | Both are members of the same workspace |
+| 5 | Sign in as Alice, then (later) as Bob | Both are members of the same workspace. An address that belongs to several workspaces is asked to pick one from a grid of name / role / workspace |
 | 6 | Compare the navigation drawers | Alice sees **Sales**, Bob sees **Accounting** — and neither sees the other's |
 | 7 | On each view, press the action button | Alice may record a sale but not post a ledger entry; Bob the reverse |
 

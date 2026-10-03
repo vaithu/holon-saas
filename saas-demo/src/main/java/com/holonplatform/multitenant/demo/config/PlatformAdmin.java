@@ -30,8 +30,8 @@ public final class PlatformAdmin {
     }
 
     /**
-     * The pseudo-workspace typed into the login form's Workspace field to reach the operator
-     * console.
+     * The pseudo-workspace the operator's credentials are registered against, which is how the
+     * login form reaches the operator console.
      *
      * <p>It is a reserved word rather than a real tenant: {@code DemoUserDetailsService}
      * short-circuits on it before any tenant lookup happens, and {@code SignupView} refuses it
