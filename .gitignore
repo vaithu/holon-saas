@@ -30,5 +30,9 @@ node_modules/
 #IDE related files
 .idea/
 .vscode/
-.mvn/
+.mvn/*
+# ...but the wrapper descriptor must stay, or mvnw fails on a fresh clone
+!.mvn/wrapper/
+.mvn/wrapper/*
+!.mvn/wrapper/maven-wrapper.properties
 .github/
